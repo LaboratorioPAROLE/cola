@@ -111,13 +111,18 @@ calc_nominal_iaa <- function(vec1, vec2) {
 #  - Exact-Match: l'intero insieme di etichette assegnate a un item viene trattato come
 #    un'unica categoria nominale (es. "1,4,7"). po/kappa/AC1/alpha sono quindi calcolati
 #    a livello di ITEM, sulla stessa identica base (coerenti tra loro).
-#  - Soft-Match: ogni etichetta viene valutata singolarmente come variabile binaria
-#    (calc_binary_iaa), preservando la propria prevalenza specifica per il calcolo di pe.
-#    I risultati vengono poi aggregati con una MACRO-MEDIA sulle etichette (media semplice
-#    dei kappa/AC1/alpha per-etichetta), non appiattendo tutte le celle in un unico vettore.
-#    Questo evita che etichette rare e frequenti vengano mescolate in un'unica stima di
-#    probabilita' di accordo casuale, che distorcerebbe (gonfiandoli) gli indici corretti
-#    per caso. po e pe usati per kappa/AC1/alpha sono cosi' sempre coerenti tra loro.
+#  - Soft-Match: definito a livello di TOKEN come "almeno un'etichetta condivisa tra i
+#    due annotatori, oppure nessuna etichetta assegnata da entrambi" (indicatore 0/1 per
+#    token). Po e' la percentuale di token che soddisfano questa condizione. Per Kappa,
+#    AC1 e Alpha si usa la stessa base dati aggregata: tutte le decisioni etichetta x
+#    token vengono impilate in due vettori binari (uno per annotatore) e trattate come
+#    un'unica variabile binaria "presenza/assenza di etichetta", cosi' che anche questi
+#    tre indici derivino dalla stessa nozione di "sovrapposizione" del Po. Nota: questo
+#    significa che Kappa/AC1/Alpha del Soft-Match mescolano le prevalenze di tutte le
+#    etichette del livello in un'unica stima della probabilita' di accordo casuale (Pe);
+#    se una o piu' etichette hanno prevalenze molto diverse dalle altre, questa stima
+#    aggregata puo' non riflettere bene l'accordo su ciascuna etichetta presa singolarmente
+#    (per quello e' disponibile, sotto, il dettaglio per-etichetta come diagnostica).
 #  - L'indice di Jaccard medio (per riga) resta un indicatore descrittivo di similarita'
 #    tra i set di etichette, riportato per entrambe le viste ma non usato nel calcolo di
 #    kappa/AC1/alpha (che seguono le formule standard via po/pe).
@@ -139,18 +144,19 @@ calc_multilabel_iaa_full <- function(m1, m2, label_names = NULL) {
   })
   mean_jaccard <- mean(jaccard_vec) * 100
   
-  # ---- Soft-Match (per-etichetta, poi macro-media) ----
+  # ---- Soft-Match (item-level: "almeno un'etichetta condivisa", o entrambi vuoti) ----
+  soft_po_token <- mean(sapply(seq_len(n), function(i) {
+    any(m1[i, ] == 1 & m2[i, ] == 1) || (sum(m1[i, ]) == 0 && sum(m2[i, ]) == 0)
+  })) * 100
+  
+  v1 <- as.vector(m1)
+  v2 <- as.vector(m2)
+  soft_cell <- calc_binary_iaa(v1, v2)
+  
+  # Dettaglio diagnostico per-etichetta (non usato per l'aggregato Soft-Match qui sopra,
+  # ma utile per capire se il numero aggregato nasconde forte eterogeneita' tra etichette)
   per_label <- lapply(seq_len(ncol(m1)), function(j) calc_binary_iaa(m1[, j], m2[, j]))
   names(per_label) <- label_names
-  
-  macro <- function(field) mean(sapply(per_label, function(x) x[[field]]))
-  
-  soft_res <- list(
-    po = macro("po"),
-    kappa = macro("kappa"),
-    ac1 = macro("ac1"),
-    alpha = macro("alpha")
-  )
   
   list(
     exact = list(
@@ -161,11 +167,11 @@ calc_multilabel_iaa_full <- function(m1, m2, label_names = NULL) {
       alpha = exact_res$alpha
     ),
     soft = list(
-      po = soft_res$po,
+      po = soft_po_token,
       jaccard = mean_jaccard,
-      kappa = soft_res$kappa,
-      ac1 = soft_res$ac1,
-      alpha = soft_res$alpha
+      kappa = soft_cell$kappa,
+      ac1 = soft_cell$ac1,
+      alpha = soft_cell$alpha
     ),
     per_label = per_label
   )
@@ -638,10 +644,10 @@ server <- function(input, output, session) {
     if (is.null(d)) return(p("Nessun token disponibile per il confronto con i filtri selezionati."))
     
     tt_po <- "Percentuale di accordo diretto osservato tra gli annotatori."
-    tt_po_soft <- "Media, su tutte le etichette, della percentuale di accordo calcolata singolarmente per ciascuna etichetta."
+    tt_po_soft <- "Percentuale di token in cui i due annotatori condividono almeno un'etichetta, oppure non ne hanno assegnata alcuna."
     tt_jaccard <- "Rapporto medio (per riga) tra intersezione e unione delle etichette assegnate dai due annotatori. Indice puramente descrittivo, non usato nel calcolo di Kappa/AC1/Alpha."
     tt_kappa <- "Indice di accordo corretto per la probabilita' di accordo casuale (Cohen per coppie, Fleiss per dati categoriali)."
-    tt_kappa_soft <- "Media dei Kappa calcolati singolarmente su ciascuna etichetta (macro-media), cosi' che ogni etichetta contribuisca con la propria prevalenza specifica."
+    tt_kappa_soft <- "Calcolato impilando tutte le decisioni etichetta x token dei due annotatori in un'unica variabile binaria di presenza/assenza, coerentemente con la definizione di Po \"almeno una condivisa\". La tabella di dettaglio sotto mostra il valore calcolato separatamente per ciascuna etichetta, come diagnostica."
     tt_ac1 <- "Indice Gwet's AC1, robusto ai paradossi del Kappa in presenza di classi fortemente sbilanciate."
     tt_alpha <- "Krippendorff's Alpha (approssimazione basata su distribuzione marginale media), coefficiente di affidabilita' generalizzabile."
     
@@ -667,10 +673,10 @@ server <- function(input, output, session) {
                      tags$td(round(res$exact$alpha, 3))
                    ),
                    tags$tr(
-                     tags$td(strong("Soft-Match (macro-media per etichetta)")),
-                     tags$td(sprintf("%.2f%%", res$soft$po)),
+                     tags$td(lbl_info(strong("Soft-Match (almeno una condivisa)"), "Vedi le note sotto la tabella per la definizione esatta di Po, Kappa, AC1 e Alpha in questa modalita'.")),
+                     tags$td(lbl_info(sprintf("%.2f%%", res$soft$po), tt_po_soft)),
                      tags$td(sprintf("%.2f%%", res$soft$jaccard)),
-                     tags$td(round(res$soft$kappa, 3)),
+                     tags$td(lbl_info(round(res$soft$kappa, 3), tt_kappa_soft)),
                      tags$td(round(res$soft$ac1, 3)),
                      tags$td(round(res$soft$alpha, 3))
                    )
@@ -699,10 +705,10 @@ server <- function(input, output, session) {
                  h5("Score Complessivo per le Macrofunzioni"),
                  div(class = "note-box",
                      "Exact-Match: l'insieme di macrofunzioni assegnate a ciascuna occorrenza e' trattato come un'unica categoria. ",
-                     "Soft-Match: ciascuna delle 3 macrofunzioni e' valutata singolarmente, poi i risultati sono mediati (macro-media)."),
+                     "Soft-Match: si ha accordo sul token se almeno una macrofunzione e' condivisa dai due annotatori (o se nessuno dei due ne ha assegnata alcuna)."),
                  make_table(d$res_macro),
                  br(),
-                 h5(lbl_info("Dettaglio Soft-Match per singola macrofunzione", tt_kappa_soft)),
+                 h5(lbl_info("Dettaglio per singola macrofunzione (diagnostica)", tt_kappa_soft)),
                  renderTable_iaa(d$res_macro$per_label)
         ),
         
@@ -711,11 +717,10 @@ server <- function(input, output, session) {
                  h5("Score Complessivo per le Microfunzioni"),
                  div(class = "note-box",
                      "Exact-Match: l'insieme di microfunzioni assegnate a ciascuna occorrenza e' trattato come un'unica categoria. ",
-                     "Soft-Match: ciascuna delle 23 microfunzioni e' valutata singolarmente, poi i risultati sono mediati (macro-media): ",
-                     "in questo modo etichette rare e frequenti non vengono mescolate nella stima della probabilita' di accordo casuale."),
+                     "Soft-Match: si ha accordo sul token se almeno una microfunzione e' condivisa dai due annotatori (o se nessuno dei due ne ha assegnata alcuna)."),
                  make_table(d$res_micro),
                  br(),
-                 h5(lbl_info("Dettaglio Soft-Match per singola microfunzione", tt_kappa_soft)),
+                 h5(lbl_info("Dettaglio per singola microfunzione (diagnostica)", tt_kappa_soft)),
                  renderTable_iaa(d$res_micro$per_label)
         )
       )
