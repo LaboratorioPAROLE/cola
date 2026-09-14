@@ -125,7 +125,7 @@ Percentuale semplice di concordanza diretta tra i due annotatori, senza alcuna c
 
 Misura la similarità tra gli insiemi di etichette assegnati dai due annotatori a ciascun token, indipendentemente dal numero di etichette coinvolte. Per ogni token $i$, con $A_i$ e $B_i$ gli insiemi di etichette attive rispettivamente per l'annotatore 1 e l'annotatore 2:
 
-$$J_i = \begin{cases} 100\% & \text{se } |A_i \cup B_i| = 0 \ \text{(nessuno dei due ha assegnato etichette)} \\ \dfrac{|A_i \cap B_i|}{|A_i \cup B_i|} \times 100 & \text{altrimenti} \end{cases}$$
+$$J_i = \dfrac{|A_i \cap B_i|}{|A_i \cup B_i|} \times 100 $$
 
 L'indice riportato è la media di $J_i$ su tutti i token del campione. È un indicatore puramente descrittivo di sovrapposizione tra insiemi: non entra nel calcolo di Kappa, AC1 o Alpha (che seguono sempre le rispettive formule standard basate su Po e sulla probabilità di accordo casuale Pe), ed è per costruzione identico nella riga Exact-Match e nella riga Soft-Match della stessa tabella, perché calcolato una sola volta a livello di token.
 
