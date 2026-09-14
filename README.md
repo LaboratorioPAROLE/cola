@@ -88,10 +88,12 @@ Poiché a ciascuna occorrenza può essere assegnato più di un'etichetta contemp
 **Exact-Match (matching sull'intero set di etichette)**
 L'insieme completo di etichette assegnato da un annotatore a un'occorrenza viene trattato come un'unica categoria nominale. Ad esempio, se un'occorrenza riceve le etichette "Accordo" e "Filler", questo insieme viene rappresentato come un'unica categoria composita (es. `"2,7"`, dove i numeri indicano le posizioni delle etichette attive). Si ha accordo su quell'occorrenza se e solo se i due annotatori hanno prodotto esattamente lo stesso insieme di etichette, senza eccezioni: un'etichetta in più o in meno da parte di uno dei due annotatori conta come disaccordo totale su quel token. È la misura più severa e riflette quanto spesso le due annotazioni coincidono come giudizio complessivo sul token.
 
-**Soft-Match (matching per singola etichetta)**
-Ogni etichetta viene valutata separatamente come propria variabile binaria (presente/assente), indipendentemente dalle altre etichette assegnate sulla stessa occorrenza. Le metriche vengono calcolate singolarmente per ciascuna etichetta — preservando la prevalenza specifica di quell'etichetta nel campione — e poi aggregate calcolando la media aritmetica semplice (macro-media) dei risultati ottenuti su tutte le etichette del livello considerato. In questo modo un disaccordo isolato su un'unica etichetta rara non penalizza il punteggio complessivo quanto farebbe nell'Exact-Match, e allo stesso tempo etichette molto frequenti ed etichette molto rare non vengono mescolate in un'unica stima aggregata, che le farebbe pesare in modo distorto.
+**Soft-Match (accordo sul token se almeno un'etichetta è condivisa)**
+Si ha accordo su un token se i due annotatori condividono almeno una delle etichette assegnate a quel token, oppure se nessuno dei due ne ha assegnata alcuna. È una misura più permissiva dell'Exact-Match: un'occorrenza in cui i due annotatori hanno scelto due etichette in parte diverse ma con almeno una sovrapposizione conta comunque come accordo, mentre nell'Exact-Match conterebbe come disaccordo totale.
 
-*Nota metodologica*: l'aggregazione per macro-media (media dei valori calcolati per ciascuna etichetta) è la scelta adottata qui invece della cosiddetta "micro-media" (che appiattirebbe tutte le decisioni etichetta × token in un unico vettore prima di calcolare le metriche): la micro-media, se le etichette hanno prevalenze molto diverse fra loro, produce stime di probabilità di accordo casuale poco rappresentative delle singole etichette e tende a distorcere (spesso gonfiare) gli indici corretti per caso.
+Per calcolare Kappa, AC1 e Alpha in modo coerente con questa stessa nozione di "sovrapposizione", tutte le decisioni etichetta × token dei due annotatori (per tutte le etichette del livello considerato: le 3 macrofunzioni o le 23 microfunzioni) vengono impilate in un'unica coppia di vettori binari e trattate come un'unica variabile "presenza/assenza di etichetta". In questo modo Po, e la base su cui vengono calcolati Kappa/AC1/Alpha, derivano dalla stessa logica di fondo.
+
+*Nota metodologica*: questa aggregazione (impilare tutte le etichette in un unico vettore, talvolta chiamata "micro-media") ha un costo: se le etichette del livello hanno prevalenze molto diverse fra loro, la probabilità di accordo casuale stimata su Kappa/AC1/Alpha riflette una media pesata su tutte le decisioni piuttosto che l'accordo specifico di ciascuna etichetta presa singolarmente, e può non essere rappresentativa per le etichette più rare. Per questo, sotto ogni tabella riassuntiva di Macrofunzioni e Microfunzioni è disponibile una tabella di dettaglio con Po, Kappa, AC1 e Alpha calcolati separatamente per ciascuna etichetta, utile come diagnostica per verificare se il valore aggregato nasconde una forte eterogeneità tra etichette.
 
 ### I tre livelli di analisi
 
@@ -111,13 +113,13 @@ Per ciascun livello e ciascuna modalità di matching (dove applicabile) vengono 
 
 Percentuale semplice di concordanza diretta tra i due annotatori, senza alcuna correzione per l'accordo dovuto al caso.
 
-- **Livello SD / singola etichetta (base di calcolo del Soft-Match)**:
+- **Livello SD / singola etichetta (base di calcolo diagnostico per-etichetta)**:
   $$P_o = \frac{\text{numero di token in cui } v_1 = v_2}{\text{numero totale di token}}$$
   dove $v_1$ e $v_2$ sono i valori binari (0/1) assegnati dai due annotatori a quella specifica etichetta.
 
 - **Exact-Match**: $P_o$ è calcolato sulla stessa formula, ma applicata al confronto tra le due stringhe che rappresentano l'intero insieme di etichette di ciascun token: accordo (1) solo se le due stringhe coincidono esattamente.
 
-- **Soft-Match**: $P_o$ è la macro-media dei $P_o$ calcolati singolarmente su ciascuna etichetta del livello considerato (le 3 macrofunzioni o le 23 microfunzioni). Questo stesso valore di $P_o$ per etichetta è quello effettivamente usato, etichetta per etichetta, nel calcolo di Kappa, AC1 e Alpha per il Soft-Match: i tre indici sono quindi sempre internamente coerenti con l'accordo osservato riportato.
+- **Soft-Match**: $P_o$ è la percentuale di token in cui $|A_i \cap B_i| > 0$ (almeno un'etichetta condivisa) oppure $|A_i \cup B_i| = 0$ (nessuno dei due annotatori ha assegnato etichette a quel token), con $A_i$ e $B_i$ gli insiemi di etichette dei due annotatori sul token $i$.
 
 #### 2. Indice di Jaccard medio
 
@@ -139,7 +141,7 @@ $$\kappa = \frac{P_o - P_e}{1 - P_e}$$
 - **Exact-Match**: le "categorie" sono tutte le combinazioni di etichette effettivamente osservate nel campione (unione delle combinazioni prodotte dai due annotatori). Con $p_{1,c}$ e $p_{2,c}$ le proporzioni con cui ciascun annotatore ha prodotto la combinazione $c$:
   $$P_e = \sum_{c} p_{1,c} \cdot p_{2,c}$$
 
-- **Soft-Match**: Kappa viene calcolato singolarmente per ciascuna etichetta con la formula binaria sopra descritta, poi i valori ottenuti vengono mediati aritmeticamente (macro-media) su tutte le etichette del livello.
+- **Soft-Match**: tutte le decisioni etichetta × token dei due annotatori vengono impilate in un'unica coppia di vettori binari $v_1, v_2$ (presenza/assenza di etichetta, su tutte le etichette del livello insieme), e Kappa è calcolato su questi vettori con la stessa formula binaria sopra descritta.
 
 #### 4. Gwet's AC1
 
@@ -153,7 +155,7 @@ $$AC1 = \frac{P_o - P_e^{AC1}}{1 - P_e^{AC1}}$$
 - **Exact-Match**: con $q$ il numero di combinazioni nominali distinte osservate nel campione, e $\bar{\pi}_c$ la proporzione media (tra i due annotatori) della combinazione $c$:
   $$P_e^{AC1} = \frac{1}{q-1} \sum_{c=1}^{q} \bar{\pi}_c\,(1 - \bar{\pi}_c)$$
 
-- **Soft-Match**: AC1 viene calcolato singolarmente per ciascuna etichetta con la formula binaria sopra descritta, poi mediato aritmeticamente sulle etichette del livello.
+- **Soft-Match**: AC1 è calcolato sugli stessi vettori binari impilati $v_1, v_2$ descritti sopra per il Kappa, con la formula binaria.
 
 #### 5. Krippendorff's Alpha (α)
 
@@ -169,10 +171,10 @@ Nell'implementazione qui adottata, $P_e^{\alpha}$ è approssimato a partire dall
 - **Exact-Match**: con $\bar{\pi}_c$ la proporzione media della combinazione nominale $c$:
   $$P_e^{\alpha} = \sum_{c} \bar{\pi}_c^2$$
 
-- **Soft-Match**: Alpha viene calcolato singolarmente per ciascuna etichetta con la formula binaria sopra descritta, poi mediato aritmeticamente sulle etichette del livello.
+- **Soft-Match**: Alpha è calcolato sugli stessi vettori binari impilati $v_1, v_2$, con la formula binaria.
 
 **Avvertenza metodologica**: questa è un'approssimazione dell'Alpha di Krippendorff basata sulle distribuzioni marginali medie, non il calcolo canonico sulla matrice di coincidenza con la correzione per campione finito (fattore $n/(n-1)$) prevista dalla formulazione originale. Per campioni piccoli o medi i due calcoli possono divergere in modo non trascurabile. Se i valori sono destinati a una pubblicazione, si raccomanda di validarli confrontandoli con un'implementazione di riferimento (ad esempio la funzione `kripp.alpha()` del pacchetto R `irr`) su un sottoinsieme di controllo dei dati.
 
-### Dettaglio per singola etichetta
+### Dettaglio per singola etichetta (diagnostica)
 
-Per i livelli Macrofunzioni e Microfunzioni, oltre alla tabella riassuntiva (Exact-Match / Soft-Match) è disponibile una tabella di dettaglio che riporta Po, Kappa, AC1 e Alpha calcolati singolarmente per ciascuna etichetta prima della macro-media. Questo permette di verificare se un valore aggregato basso o alto nasconde in realtà una forte eterogeneità tra le etichette (ad esempio un'ottima concordanza sulle etichette frequenti e un forte disaccordo su una singola etichetta rara).
+Per i livelli Macrofunzioni e Microfunzioni, oltre alla tabella riassuntiva (Exact-Match / Soft-Match) è disponibile una tabella di dettaglio che riporta Po, Kappa, AC1 e Alpha calcolati separatamente per ciascuna etichetta, usando la stessa formula binaria del livello SD applicata a quella singola etichetta. Questa tabella non entra nel calcolo dell'aggregato Soft-Match sopra (che, come descritto, impila tutte le etichette insieme): serve come diagnostica per verificare se il numero aggregato nasconde una forte eterogeneità tra etichette — ad esempio un'ottima concordanza sulle etichette frequenti insieme a un forte disaccordo su una singola etichetta rara.
