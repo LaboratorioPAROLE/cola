@@ -71,7 +71,7 @@ Queste colonne non devono essere precompilate: se assenti nel file caricato, l'a
 | `doc.full_conversation` | Link alla trascrizione integrale della conversazione |
 | `doc.full_jefferson` | Link alla trascrizione in notazione Jefferson |
 
-Quando questi campi sono compilati (ad esempio con URL a risorse del corpus KIParla o di altri repository), nel pannello di dettaglio compaiono i link "Audio", "Conversazione" e "Jefferson", che aprono la risorsa corrispondente in una nuova scheda. Questo permette all'annotatore/trice di risalire dal singolo token al parlato originale — ascoltando l'audio o leggendo la trascrizione completa — per disambiguare i casi di annotazione più incerti, senza dover lasciare l'interfaccia di annotazione se non per consultare la fonte.
+Quando questi campi sono compilati (ad esempio con URL a risorse del corpus KIParla o di altri repository), nel pannello di dettaglio compaiono i link "Audio", "Conversazione" e "Jefferson", che aprono la risorsa corrispondente in una nuova scheda.
 
 Se questi campi sono assenti o vuoti, i relativi link semplicemente non vengono mostrati; l'annotazione resta comunque possibile sulla sola base del contesto KWIC.
 
