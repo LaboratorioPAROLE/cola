@@ -261,11 +261,7 @@ L'AC1 viene utilizzato come misura di accordo corretta per l'accordo atteso.
 
 La formula utilizzata è:
 
-$$
-AC1 =
-\frac{P_o-P_e^{AC1}}
-{1-P_e^{AC1}}
-$$
+$$AC1 =\frac{P_o-P_e^{AC1}}{1-P_e^{AC1}}$$
 
 dove la probabilità di accordo atteso viene calcolata a partire dalla proporzione media di assegnazioni positive dei due annotatori:
 
@@ -276,11 +272,7 @@ $$
 
 e:
 
-$$
-P_e^{AC1}
-=
-2\bar p(1-\bar p)
-$$
+$$P\_e^{AC1} = 2\bar p(1-\bar p)$$
 
 Al Livello SD il calcolo viene effettuato sulla classificazione `SD / Non SD`.
 
