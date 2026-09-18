@@ -79,102 +79,382 @@ Se questi campi sono assenti o vuoti, i relativi link semplicemente non vengono 
 
 ## Analisi dell'Inter-Annotator Agreement (IAA)
 
-L'applicazione include un modulo per il confronto tra due annotazioni indipendenti dello stesso set di occorrenze (ad esempio due annotatori che hanno lavorato sullo stesso file, o un'annotazione confrontata con un gold standard). Si accede al modulo tramite il pulsante "Confronta Annotazioni (IAA)": si carica un secondo file (di riferimento) e il sistema confronta riga per riga le due annotazioni.
+L'applicazione include un modulo per il confronto tra due annotazioni indipendenti dello stesso set di occorrenze (ad esempio due annotatori che hanno lavorato sullo stesso file, o un'annotazione confrontata con un gold standard). Si accede al modulo tramite il pulsante "Confronta Annotazioni (IAA)": si carica un secondo file (di riferimento) e il sistema confronta le due annotazioni riga per riga.
 
-Poiché a ciascuna occorrenza può essere assegnato più di un'etichetta contemporaneamente (annotazione multilabel), il confronto viene condotto secondo due strategie di matching distinte — **Exact-Match** e **Soft-Match** — applicate a tre livelli di analisi: **Livello SD**, **Macrofunzioni**, **Microfunzioni**.
+Poiché a ciascuna occorrenza può essere assegnata più di un'etichetta contemporaneamente (annotazione multilabel), il confronto delle funzioni viene condotto a due livelli — **Macrofunzioni** e **Microfunzioni** — e secondo tre modalità di confronto tra insiemi: **Exact-Match**, **Soft-Match** e **Jaccard-Match**. A questi si aggiungono il confronto al **Livello SD** e l'analisi della **Polifunzionalità**.
 
-### Le due strategie di matching
+### Il filtraggio dei token
 
-**Exact-Match (matching sull'intero set di etichette)**
-L'insieme completo di etichette assegnato da un annotatore a un'occorrenza viene trattato come un'unica categoria nominale. Ad esempio, se un'occorrenza riceve le etichette "Accordo" e "Filler", questo insieme viene rappresentato come un'unica categoria composita (es. `"2,7"`, dove i numeri indicano le posizioni delle etichette attive). Si ha accordo su quell'occorrenza se e solo se i due annotatori hanno prodotto esattamente lo stesso insieme di etichette, senza eccezioni: un'etichetta in più o in meno da parte di uno dei due annotatori conta come disaccordo totale su quel token. È la misura più severa e riflette quanto spesso le due annotazioni coincidono come giudizio complessivo sul token.
+Il confronto può essere effettuato su tutti i token oppure limitato ai token annotati.
 
-**Soft-Match (accordo sul token se almeno un'etichetta è condivisa)**
-Si ha accordo su un token se i due annotatori condividono almeno una delle etichette assegnate a quel token, oppure se nessuno dei due ne ha assegnata alcuna. È una misura più permissiva dell'Exact-Match: un'occorrenza in cui i due annotatori hanno scelto due etichette in parte diverse ma con almeno una sovrapposizione conta comunque come accordo, mentre nell'Exact-Match conterebbe come disaccordo totale.
+Quando è attivo il filtro "solo token annotati", per il **Livello SD** vengono considerati i token per i quali almeno uno dei due annotatori ha assegnato esplicitamente `SD` oppure `Non SD`.
 
-Per calcolare Kappa, AC1 e Alpha in modo coerente con questa stessa nozione di "sovrapposizione", tutte le decisioni etichetta × token dei due annotatori (per tutte le etichette del livello considerato: le 3 macrofunzioni o le 23 microfunzioni) vengono impilate in un'unica coppia di vettori binari e trattate come un'unica variabile "presenza/assenza di etichetta". In questo modo Po, e la base su cui vengono calcolati Kappa/AC1/Alpha, derivano dalla stessa logica di fondo.
+Per il confronto delle funzioni vengono invece considerati esclusivamente i token classificati come `SD` da **entrambi** gli annotatori. I token classificati come `Non SD` da almeno uno dei due annotatori vengono quindi esclusi dall'analisi delle funzioni.
 
-*Nota metodologica*: questa aggregazione (impilare tutte le etichette in un unico vettore, talvolta chiamata "micro-media") ha un costo: se le etichette del livello hanno prevalenze molto diverse fra loro, la probabilità di accordo casuale stimata su Kappa/AC1/Alpha riflette una media pesata su tutte le decisioni piuttosto che l'accordo specifico di ciascuna etichetta presa singolarmente, e può non essere rappresentativa per le etichette più rare. Per questo, sotto ogni tabella riassuntiva di Macrofunzioni e Microfunzioni è disponibile una tabella di dettaglio con Po, Kappa, AC1 e Alpha calcolati separatamente per ciascuna etichetta, utile come diagnostica per verificare se il valore aggregato nasconde una forte eterogeneità tra etichette.
+Inoltre, nel confronto multilabel vengono esclusi i token per i quali entrambi gli annotatori non hanno assegnato alcuna funzione.
+
+Il numero di token utilizzato per il Livello SD e quello utilizzato per il confronto delle funzioni può quindi essere differente.
+
+### Le tre modalità di confronto delle funzioni
+
+**Exact-Match (corrispondenza esatta dell'intero insieme di etichette)**
+
+L'insieme completo di etichette assegnato da un annotatore a un'occorrenza viene trattato come un unico insieme.
+
+Si ha accordo se e solo se i due annotatori hanno assegnato esattamente lo stesso insieme di etichette, indipendentemente dall'ordine con cui le etichette sono rappresentate.
+
+Ad esempio, se un'occorrenza riceve le etichette "Accordo" e "Filler", l'annotazione è considerata identica anche se le due etichette compaiono in ordine diverso nei due file.
+
+Un'etichetta in più o in meno da parte di uno dei due annotatori determina invece un disaccordo.
+
+L'Exact-Match misura quindi quanto spesso i due annotatori coincidono completamente nell'insieme di funzioni assegnate a un token.
+
+**Soft-Match (sovrapposizione di almeno una funzione)**
+
+Si ha accordo su un token se i due annotatori condividono almeno una delle etichette assegnate:
+
+$$
+|A_i \cap B_i| > 0
+$$
+
+dove $A_i$ e $B_i$ sono gli insiemi di etichette assegnati dai due annotatori al token $i$.
+
+Ad esempio, se un annotatore assegna "Accordo" e "Filler" e l'altro "Accordo" e "Attenuazione", il token è considerato in accordo secondo il Soft-Match perché almeno una funzione è condivisa.
+
+Se invece i due annotatori non condividono alcuna funzione, il token è considerato in disaccordo.
+
+I token in cui entrambi gli annotatori non hanno assegnato alcuna funzione vengono esclusi dal confronto e non sono quindi considerati accordi Soft-Match.
+
+**Jaccard-Match (grado di sovrapposizione tra insiemi)**
+
+Il Jaccard misura quantitativamente quanto i due insiemi di funzioni si sovrappongono.
+
+Per ogni token $i$ viene calcolato:
+
+$$
+J_i =
+\frac{|A_i \cap B_i|}
+{|A_i \cup B_i|}
+$$
+
+Il valore complessivo riportato è la media dei Jaccard calcolati sui token considerati:
+
+$$
+J =
+\frac{1}{n}\sum_{i=1}^{n} J_i
+$$
+
+Il risultato viene espresso in percentuale.
+
+Il Jaccard distingue quindi, a differenza dell'Exact-Match, tra una sovrapposizione completa e una sovrapposizione parziale. Ad esempio, se due annotatori assegnano rispettivamente tre e due funzioni e una sola funzione è condivisa, il Jaccard riflette questa sovrapposizione parziale invece di classificare semplicemente il token come accordo o disaccordo.
 
 ### I tre livelli di analisi
 
-1. **Livello SD**: confronta direttamente la decisione binaria "SD / Non SD" tra i due annotatori. Non essendoci più etichette per token a questo livello, non si applica la distinzione Exact/Soft-Match: viene calcolato un solo set di metriche sulla variabile binaria.
+1. **Livello SD**: confronta direttamente la decisione binaria "SD / Non SD" tra i due annotatori. A questo livello viene calcolato un unico insieme di metriche sulla classificazione binaria.
 
-2. **Macrofunzioni**: le 23 microfunzioni vengono aggregate nelle tre macro-categorie (Interazionali, Metatestuali, Cognitive). Una macro-categoria è considerata presente su un'occorrenza se almeno una delle microfunzioni che la compongono è stata selezionata da quell'annotatore. Il confronto Exact/Soft-Match viene quindi condotto trattando queste tre macro-categorie come le "etichette" del token.
+2. **Macrofunzioni**: le 23 microfunzioni vengono aggregate nelle tre macro-categorie (Interazionali, Metatestuali, Cognitive). Una macro-categoria è considerata presente su un'occorrenza se almeno una delle microfunzioni che la compongono è stata selezionata da quell'annotatore. Le tre macro-categorie vengono quindi trattate come un insieme di etichette e confrontate mediante Exact-Match, Soft-Match e Jaccard-Match.
 
-3. **Microfunzioni**: il confronto Exact/Soft-Match viene condotto usando direttamente le 23 microfunzioni originali come etichette.
+3. **Microfunzioni**: il confronto viene effettuato direttamente sulle 23 microfunzioni originali, considerate come insieme di etichette assegnabili contemporaneamente allo stesso token.
 
-Per il confronto è possibile filtrare i token, includendo solo quelli "annotati" (cioè con almeno un'etichetta attiva da parte di uno dei due annotatori, oppure marcati SD da almeno uno dei due), per evitare che un largo numero di token pacificamente non-SD e non annotati gonfi artificialmente l'accordo osservato.
+Per Macrofunzioni e Microfunzioni, oltre alle misure di matching, viene calcolato un Alpha basato sulla distanza tra gli insiemi di etichette.
 
-### Le cinque metriche calcolate
+### Le metriche calcolate
 
-Per ciascun livello e ciascuna modalità di matching (dove applicabile) vengono calcolati cinque indici.
+Per il **Livello SD** vengono calcolati cinque indicatori:
+
+* Accordo Osservato (Po);
+* Indice di Jaccard;
+* Cohen's Kappa;
+* Gwet's AC1;
+* Krippendorff's Alpha.
+
+Per **Macrofunzioni** e **Microfunzioni** vengono calcolati:
+
+* Exact-Match;
+* Soft-Match;
+* Jaccard-Match;
+* Krippendorff's Alpha per ciascuna delle tre modalità di confronto.
+
+Per ciascuna singola Macrofunzione e Microfunzione viene inoltre fornito un dettaglio diagnostico con:
+
+* Accordo positivo (Po);
+* Cohen's Kappa;
+* Gwet's AC1;
+* Alpha.
+
+---
 
 #### 1. Accordo Osservato (Po)
 
-Percentuale semplice di concordanza diretta tra i due annotatori, senza alcuna correzione per l'accordo dovuto al caso.
+L'Accordo Osservato misura la percentuale di casi in cui i due annotatori forniscono la stessa classificazione.
 
-- **Livello SD / singola etichetta (base di calcolo diagnostico per-etichetta)**:
-  $$P_o = \frac{\text{numero di token in cui } v_1 = v_2}{\text{numero totale di token}}$$
-  dove $v_1$ e $v_2$ sono i valori binari (0/1) assegnati dai due annotatori a quella specifica etichetta.
+Al **Livello SD**, essendo la variabile binaria, viene calcolato come:
 
-- **Exact-Match**: $P_o$ è calcolato sulla stessa formula, ma applicata al confronto tra le due stringhe che rappresentano l'intero insieme di etichette di ciascun token: accordo (1) solo se le due stringhe coincidono esattamente.
+$$
+P_o =
+\frac{\text{numero di token in cui } v_1=v_2}
+{\text{numero totale di token}}
+$$
 
-- **Soft-Match**: $P_o$ è la percentuale di token in cui $|A_i \cap B_i| > 0$ (almeno un'etichetta condivisa) oppure $|A_i \cup B_i| = 0$ (nessuno dei due annotatori ha assegnato etichette a quel token), con $A_i$ e $B_i$ gli insiemi di etichette dei due annotatori sul token $i$.
+dove $v_1$ e $v_2$ rappresentano rispettivamente la classificazione dei due annotatori (`1 = SD`, `0 = Non SD`).
+
+Per le **Macrofunzioni** e le **Microfunzioni**, l'Accordo Osservato viene espresso attraverso le tre modalità di matching:
+
+* **Exact-Match**: percentuale di token in cui i due insiemi di funzioni coincidono esattamente;
+* **Soft-Match**: percentuale di token in cui i due insiemi condividono almeno una funzione;
+* **Jaccard-Match**: media percentuale del Jaccard tra i due insiemi.
+
+Il confronto delle funzioni viene effettuato sui token non vuoti, cioè sui token per i quali almeno uno dei due annotatori ha assegnato almeno una funzione.
+
+---
 
 #### 2. Indice di Jaccard medio
 
-Misura la similarità tra gli insiemi di etichette assegnati dai due annotatori a ciascun token, indipendentemente dal numero di etichette coinvolte. Per ogni token $i$, con $A_i$ e $B_i$ gli insiemi di etichette attive rispettivamente per l'annotatore 1 e l'annotatore 2:
+L'indice di Jaccard misura la similarità tra gli insiemi di etichette assegnati dai due annotatori a ciascun token.
 
-$$J_i = \dfrac{|A_i \cap B_i|}{|A_i \cup B_i|} \times 100 $$
+Per ogni token $i$:
 
-L'indice riportato è la media di $J_i$ su tutti i token del campione. È un indicatore puramente descrittivo di sovrapposizione tra insiemi: non entra nel calcolo di Kappa, AC1 o Alpha (che seguono sempre le rispettive formule standard basate su Po e sulla probabilità di accordo casuale Pe), ed è per costruzione identico nella riga Exact-Match e nella riga Soft-Match della stessa tabella, perché calcolato una sola volta a livello di token.
+$$
+J_i =
+\frac{|A_i \cap B_i|}
+{|A_i \cup B_i|}
+\times 100
+$$
 
-#### 3. Cohen's / Fleiss' Kappa (κ)
+Il valore riportato è la media dei valori $J_i$ sui token considerati.
 
-Corregge l'accordo osservato sottraendo la quota di accordo attesa per puro caso ($P_e$):
+Il Jaccard è quindi una misura graduata della sovrapposizione: una corrispondenza completa produce un valore pari al 100%, mentre una sovrapposizione parziale produce un valore compreso tra 0% e 100%.
 
-$$\kappa = \frac{P_o - P_e}{1 - P_e}$$
+Il Jaccard è una misura descrittiva della similarità tra insiemi e non costituisce una correzione per l'accordo atteso casualmente.
 
-- **Livello SD / singola etichetta**: con $p_{1,1}, p_{1,0}$ le proporzioni con cui l'annotatore 1 ha assegnato rispettivamente 1 e 0, e $p_{2,1}, p_{2,0}$ le stesse proporzioni per l'annotatore 2:
-  $$P_e = (p_{1,1} \cdot p_{2,1}) + (p_{1,0} \cdot p_{2,0})$$
+---
 
-- **Exact-Match**: le "categorie" sono tutte le combinazioni di etichette effettivamente osservate nel campione (unione delle combinazioni prodotte dai due annotatori). Con $p_{1,c}$ e $p_{2,c}$ le proporzioni con cui ciascun annotatore ha prodotto la combinazione $c$:
-  $$P_e = \sum_{c} p_{1,c} \cdot p_{2,c}$$
+#### 3. Cohen's Kappa (κ)
 
-- **Soft-Match**: tutte le decisioni etichetta × token dei due annotatori vengono impilate in un'unica coppia di vettori binari $v_1, v_2$ (presenza/assenza di etichetta, su tutte le etichette del livello insieme), e Kappa è calcolato su questi vettori con la stessa formula binaria sopra descritta.
+Al Livello SD, il Kappa corregge l'Accordo Osservato tenendo conto dell'accordo atteso per caso:
+
+$$
+\kappa =
+\frac{P_o-P_e}{1-P_e}
+$$
+
+dove:
+
+$$
+P_e =
+(p_{1,1}\cdot p_{2,1})
++
+(p_{1,0}\cdot p_{2,0})
+$$
+
+con $p_{1,1}$ e $p_{2,1}$ proporzioni di classificazioni `SD` e $p_{1,0}$ e $p_{2,0}$ proporzioni di classificazioni `Non SD` dei due annotatori.
+
+Per il dettaglio delle singole Macrofunzioni e Microfunzioni, la stessa misura viene calcolata trattando ciascuna funzione separatamente come una variabile binaria presenza/assenza.
+
+In questo caso vengono considerati i token per i quali almeno uno dei due annotatori ha assegnato quella specifica funzione.
+
+---
 
 #### 4. Gwet's AC1
 
-Indice di accordo corretto per il caso, costruito per essere più stabile del Kappa nei casi di forte sbilanciamento tra le classi (ad esempio quando una funzione è molto rara o quando molti token sono vuoti su entrambi i lati):
+L'AC1 viene utilizzato come misura di accordo corretta per l'accordo atteso.
 
-$$AC1 = \frac{P_o - P_e^{AC1}}{1 - P_e^{AC1}}$$
+La formula utilizzata è:
 
-- **Livello SD / singola etichetta**: con $\bar{p}_1$ la proporzione media di "presenza" (valore 1) tra i due annotatori su quella variabile:
-  $$P_e^{AC1} = 2\,\bar{p}_1\,(1 - \bar{p}_1)$$
+$$
+AC1 =
+\frac{P_o-P_e^{AC1}}
+{1-P_e^{AC1}}
+$$
 
-- **Exact-Match**: con $q$ il numero di combinazioni nominali distinte osservate nel campione, e $\bar{\pi}_c$ la proporzione media (tra i due annotatori) della combinazione $c$:
-  $$P_e^{AC1} = \frac{1}{q-1} \sum_{c=1}^{q} \bar{\pi}_c\,(1 - \bar{\pi}_c)$$
+dove la probabilità di accordo atteso viene calcolata a partire dalla proporzione media di assegnazioni positive dei due annotatori:
 
-- **Soft-Match**: AC1 è calcolato sugli stessi vettori binari impilati $v_1, v_2$ descritti sopra per il Kappa, con la formula binaria.
+$$
+\bar p =
+\frac{p_{1,1}+p_{2,1}}{2}
+$$
+
+e:
+
+$$
+P_e^{AC1}
+=
+2\bar p(1-\bar p)
+$$
+
+Al Livello SD il calcolo viene effettuato sulla classificazione `SD / Non SD`.
+
+Nel dettaglio per singola Macrofunzione e Microfunzione viene effettuato sulla presenza/assenza della specifica funzione.
+
+---
 
 #### 5. Krippendorff's Alpha (α)
 
-Valuta l'affidabilità complessiva del confronto in termini di disaccordo osservato rispetto al disaccordo atteso per caso:
+L'Alpha misura l'accordo in termini di disaccordo osservato rispetto al disaccordo atteso.
 
-$$\alpha = 1 - \frac{D_o}{D_e} \quad\Longleftrightarrow\quad \alpha = \frac{P_o - P_e^{\alpha}}{1 - P_e^{\alpha}}$$
+Nella classificazione binaria viene calcolato come:
 
-Nell'implementazione qui adottata, $P_e^{\alpha}$ è approssimato a partire dalla distribuzione marginale media tra i due annotatori:
+$$
+\alpha =
+1-\frac{D_o}{D_e}
+$$
 
-- **Livello SD / singola etichetta**: con $\bar{p}_1$ la proporzione media di presenza come sopra:
-  $$P_e^{\alpha} = \bar{p}_1^2 + (1 - \bar{p}_1)^2$$
+dove $D_o$ è il disaccordo osservato e $D_e$ il disaccordo atteso sulla base della distribuzione complessiva delle categorie.
 
-- **Exact-Match**: con $\bar{\pi}_c$ la proporzione media della combinazione nominale $c$:
-  $$P_e^{\alpha} = \sum_{c} \bar{\pi}_c^2$$
+Al Livello SD, il disaccordo osservato è la proporzione di token sui quali i due annotatori forniscono classificazioni differenti.
 
-- **Soft-Match**: Alpha è calcolato sugli stessi vettori binari impilati $v_1, v_2$, con la formula binaria.
+Per il dettaglio delle singole funzioni viene utilizzato lo stesso principio sulla variabile binaria presenza/assenza della funzione.
 
-**Avvertenza metodologica**: questa è un'approssimazione dell'Alpha di Krippendorff basata sulle distribuzioni marginali medie, non il calcolo canonico sulla matrice di coincidenza con la correzione per campione finito (fattore $n/(n-1)$) prevista dalla formulazione originale. Per campioni piccoli o medi i due calcoli possono divergere in modo non trascurabile. Se i valori sono destinati a una pubblicazione, si raccomanda di validarli confrontandoli con un'implementazione di riferimento (ad esempio la funzione `kripp.alpha()` del pacchetto R `irr`) su un sottoinsieme di controllo dei dati.
+Per **Macrofunzioni e Microfunzioni**, invece, l'Alpha viene calcolato direttamente sulla natura set-valued dell'annotazione, utilizzando una distanza specifica per ciascuna modalità di matching.
+
+##### Alpha Exact-Match
+
+La distanza tra due insiemi è:
+
+$$
+d(A_i,B_i)=
+\begin{cases}
+0 & \text{se } A_i=B_i\\
+1 & \text{se } A_i\ne B_i
+\end{cases}
+$$
+
+L'Alpha misura quindi il disaccordo considerando identici soltanto gli insiemi completamente coincidenti.
+
+##### Alpha Soft-Match
+
+La distanza è:
+
+$$
+d(A_i,B_i)=
+\begin{cases}
+0 & \text{se } |A_i\cap B_i|>0\\
+1 & \text{altrimenti}
+\end{cases}
+$$
+
+Due annotazioni vengono quindi considerate identiche ai fini della distanza quando condividono almeno una funzione.
+
+##### Alpha Jaccard
+
+La distanza è definita come:
+
+$$
+d(A_i,B_i)=1-J(A_i,B_i)
+$$
+
+ovvero:
+
+$$
+d(A_i,B_i)=
+1-
+\frac{|A_i\cap B_i|}
+{|A_i\cup B_i|}
+$$
+
+In questo caso la distanza cresce progressivamente al diminuire della sovrapposizione tra le annotazioni.
+
+Per tutte e tre le modalità, il disaccordo osservato viene ottenuto come media delle distanze tra le annotazioni dei due annotatori.
+
+Il disaccordo atteso viene invece calcolato mettendo insieme le annotazioni dei due annotatori in un unico campione e confrontando le diverse coppie di insiemi presenti nel campione complessivo.
+
+L'Alpha viene infine ottenuto come:
+
+$$
+\alpha =
+1-\frac{D_o}{D_e}
+$$
+
+In questo modo l'Alpha tiene conto non soltanto della distanza tra le due annotazioni dello stesso token, ma anche della distribuzione degli insiemi di etichette presenti complessivamente nel campione.
+
+---
 
 ### Dettaglio per singola etichetta (diagnostica)
 
-Per i livelli Macrofunzioni e Microfunzioni, oltre alla tabella riassuntiva (Exact-Match / Soft-Match) è disponibile una tabella di dettaglio che riporta Po, Kappa, AC1 e Alpha calcolati separatamente per ciascuna etichetta, usando la stessa formula binaria del livello SD applicata a quella singola etichetta. Questa tabella non entra nel calcolo dell'aggregato Soft-Match sopra (che, come descritto, impila tutte le etichette insieme): serve come diagnostica per verificare se il numero aggregato nasconde una forte eterogeneità tra etichette — ad esempio un'ottima concordanza sulle etichette frequenti insieme a un forte disaccordo su una singola etichetta rara.
+Per i livelli Macrofunzioni e Microfunzioni, oltre alle misure complessive basate sul confronto degli insiemi, è disponibile una tabella di dettaglio per ciascuna etichetta.
+
+Ogni funzione viene considerata separatamente come una variabile binaria:
+
+* `1` = funzione assegnata;
+* `0` = funzione non assegnata.
+
+Per ciascuna funzione vengono considerati i token in cui almeno uno dei due annotatori ha assegnato quella funzione.
+
+Per ogni etichetta vengono quindi riportati:
+
+* **N positivo**: numero di token in cui la funzione è stata assegnata da almeno uno dei due annotatori;
+* **Accordo positivo (%)**: percentuale di accordo tra i due annotatori nel campione considerato;
+* **Kappa**;
+* **AC1**;
+* **Alpha**.
+
+Queste misure sono calcolate separatamente per ciascuna etichetta e consentono di osservare il comportamento delle singole funzioni, distinguendo ad esempio funzioni molto frequenti da funzioni più rare.
+
+I valori per singola etichetta costituiscono quindi un'analisi diagnostica complementare alle misure complessive basate sugli insiemi di funzioni.
+
+---
+
+### Polifunzionalità
+
+La sezione dedicata alla polifunzionalità descrive il numero di funzioni assegnate a ciascun token dai due annotatori.
+
+Per ogni token viene calcolata la cardinalità dell'insieme di funzioni:
+
+$$
+c_i=|A_i|
+$$
+
+e vengono confrontate le cardinalità dei due annotatori.
+
+Sono riportati:
+
+* numero medio di funzioni per token;
+* mediana del numero di funzioni;
+* deviazione standard;
+* percentuale di token senza funzioni;
+* percentuale di token monofunzionali;
+* percentuale di token polifunzionali, cioè con almeno due funzioni.
+
+Viene inoltre calcolata la concordanza sul numero di funzioni assegnate:
+
+* **stesso numero di funzioni**:
+
+$$
+|c_{1i}-c_{2i}|=0
+$$
+
+* **differenza di una funzione**:
+
+$$
+|c_{1i}-c_{2i}|=1
+$$
+
+* **differenza di almeno due funzioni**:
+
+$$
+|c_{1i}-c_{2i}|\ge2
+$$
+
+e la **differenza assoluta media**:
+
+$$
+\frac{1}{n}
+\sum_i |c_{1i}-c_{2i}|
+$$
+
+La polifunzionalità non misura quindi l'identità delle funzioni assegnate, ma la concordanza tra i due annotatori rispetto alla **quantità di funzioni** attribuite a ciascun token.
+
+---
+
+### Riepilogo
+
+| Livello              | Misure                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **SD**               | Accordo Osservato, Jaccard, Cohen's Kappa, Gwet's AC1, Alpha                                               |
+| **Macrofunzioni**    | Exact-Match, Soft-Match, Jaccard-Match, Alpha per Exact/Soft/Jaccard + dettaglio per singola macrofunzione |
+| **Microfunzioni**    | Exact-Match, Soft-Match, Jaccard-Match, Alpha per Exact/Soft/Jaccard + dettaglio per singola microfunzione |
+| **Polifunzionalità** | Distribuzione del numero di funzioni e accordo sulla cardinalità                                           |
+
+Le misure di matching descrivono diversi gradi di accordo tra annotazioni multilabel: l'**Exact-Match** richiede la coincidenza completa dell'insieme, il **Soft-Match** richiede almeno una funzione condivisa, mentre il **Jaccard-Match** misura quantitativamente il grado di sovrapposizione tra i due insiemi.
+
+## L'**Alpha** integra invece il confronto con una stima del disaccordo atteso sulla base della distribuzione degli insiemi presenti nel campione, utilizzando una distanza coerente con la modalità di matching considerata.
