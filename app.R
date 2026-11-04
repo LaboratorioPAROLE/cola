@@ -3,16 +3,27 @@ library(readxl)
 library(writexl)
 library(DT)
 library(shinycssloaders)
+library(shinyFiles)
+
+# =========================
+# IMPOSTAZIONI
+# =========================
+
+# Alla prima apertura di un file ne crea una copia di sicurezza "nomefile.xlsx.bak"
+# accanto all'originale (una sola volta, mai sovrascritta). Metti FALSE per disattivarla.
+BACKUP_PRIMA_APERTURA <- TRUE
+
+# Dove l'app ricorda i file recenti (cartella utente, non quella dell'app)
+CONFIG_DIR   <- tools::R_user_dir("cola", which = "config")
+RECENTI_PATH <- file.path(CONFIG_DIR, "recenti.rds")
+MAX_RECENTI  <- 10
+
+# Nome della colonna con il numero univoco di riga (viene creata se manca)
+ID_COL <- "id_riga"
 
 # =========================
 # UTILS & HELPERS
 # =========================
-
-myDownloadButton <- function(...) {
-  tag <- shiny::downloadButton(...)
-  tag$attribs$download <- NULL
-  tag
-}
 
 safe_id <- function(x) {
   x <- tolower(x)
@@ -417,6 +428,19 @@ COGNITIVE <- c(
 )
 
 ALL_KEYS <- c(INTERAZIONALI, METATESTUALI, COGNITIVE)
+ALL_IDS  <- safe_id(ALL_KEYS)
+
+GRUPPI_MACRO <- list(Interazionali = INTERAZIONALI, Metatestuali = METATESTUALI, Cognitive = COGNITIVE)
+MACRO_DI <- setNames(rep(names(GRUPPI_MACRO), lengths(GRUPPI_MACRO)), ALL_IDS)
+
+# Matrice logica righe x 3 macrofunzioni (TRUE se la riga ha almeno una micro di quel gruppo)
+macro_matrice <- function(df) {
+  m <- as.matrix(df[, ALL_IDS, drop = FALSE])
+  storage.mode(m) <- "numeric"
+  out <- do.call(cbind, lapply(GRUPPI_MACRO, function(g) rowSums(m[, safe_id(g), drop = FALSE] == 1, na.rm = TRUE) > 0))
+  if (is.null(dim(out))) out <- matrix(out, nrow = nrow(df), dimnames = list(NULL, names(GRUPPI_MACRO)))
+  out
+}
 
 DEFINIZIONI <- list(
   "Presa di turno" = 'Segnala che un/a parlante sta iniziando il proprio turno. Es: "allora...", "dunque..."',
@@ -424,20 +448,20 @@ DEFINIZIONI <- list(
   "Cessione del turno" = "E' usato dal/la parlante per richiedere risposta all'interlocutore/trice o per chiudere il proprio turno. Es: \"prego\", \"va bene?\", \"no?\"",
   "Marcatura della conoscenza condivisa" = "E' usato dal/la parlante per riconoscere o per assicurarsi che l'altra persona e' a conoscenza di una certa informazione. Es: \"sai\", \"non so se mi spiego\"",
   "Richiesta di accordo/conferma" = 'Serve al/la parlante per chiedere all\'interlocutore/trice una conferma, di attenzione o di accordo. Es: "capito?", "no?"',
-  "Accordo" = 'Serve al/la parlante per segnalare all\'interlocutore/trice che e\' d\'accordo con quanto detto prima. Es: "sisi", "eh direi!"',
+  "Accordo" = 'Serve al/la parlante per segnalare all\'interlocutore/trice che è d\'accordo con quanto detto prima. Es: "sisi", "eh direi!"',
   "Richiesta di attenzione" = 'Serve al/la parlante per richiamare l\'attenzione su cio\' che sta per dire. Es: "senti...", "guarda..."',
   "Conferma dell'attenzione" = 'Segnala che un/a parlante segue ancora il discorso e/o incoraggia l\'interlocutore/trice a continuare. Es: "mhmh", "certo"',
   "Strategia di cortesia" = 'Serve al/la parlante come strategia di mantenimento della faccia. Es: "gentilmente", "scusa"',
   "Introduzione o ripresa del topic" = 'E\' usato dal/la parlante per introdurre o riprendere un topic. Es: "quindi...", "dopodiche..."',
   "Chiusura del topic" = 'E\' usato dal/la parlante per chiudere un argomento. Es: "ok", "bene", "bon"',
   "Prolettico" = 'Serve al/la parlante per segnalare una formulazione che ritiene adeguata di cio\' che sta per dire. Es: "ecco...", "direi..."',
-  "Riformulazione" = 'Viene usato per riformulare quanto appena detto, che sia per ragioni stilistiche, di precisione o di cortesia. Es: "cioe\' nel senso...", "dico..."',
+  "Riformulazione" = 'Viene usato per riformulare quanto appena detto, che sia per ragioni stilistiche, di precisione o di cortesia. Es: "cioè nel senso...", "dico..."',
   "Citazione/Discorso Riportato" = 'E\' usato per introdurre qualcosa detto da qualcun altro/a. Es: "mi fa...", "ah..."',
   "Esemplificazione" = 'Introduce un esempio o parafrasa rispetto a un elemento presente nel testo. Es: "mettiamo", "tipo"',
   "Filler" = 'Viene usato dal/la parlante come pausa piena per coprire i tempi di formulazione. Es: "quindi direi tipo", "mh diciamo"',
-  "Marca di generalizzazione" = 'E\' un modo di rimandare a una categoria piu\' ampia che il/la parlante da\' per condivisa. Es: "eccetera", "capito no"',
-  "Marcatura dell'inferenza" = 'Serve per segnalare che il/la parlante e\' arrivato/a a una conclusione per deduzione. Es: "allora", "quindi", "insomma"',
-  "Modulazione del grado di confidenza" = 'Serve per segnalare che il/la parlante non e\' completamente sicuro/a di cio\' che sostiene. Es: "mi pare", "credo"',
+  "Marca di generalizzazione" = 'E\' un modo di rimandare a una categoria piu\' ampia che il/la parlante dà per condivisa. Es: "eccetera", "capito no"',
+  "Marcatura dell'inferenza" = 'Serve per segnalare che il/la parlante è arrivato/a a una conclusione per deduzione. Es: "allora", "quindi", "insomma"',
+  "Modulazione del grado di confidenza" = 'Serve per segnalare che il/la parlante non è completamente sicuro/a di cio\' che sostiene. Es: "mi pare", "credo"',
   "Approssimazione" = 'E\' usato per rendere piu\' vago quello che si dice. Es: "diciamo", "tipo"',
   "Specificazione" = 'E\' usato per rendere meno vago quello che si dice. Es: "proprio", "letteralmente"',
   "Attenuazione" = 'Serve al/la parlante per mitigare la portata di un certo termine o espressione. Es: "direi", "tipo"',
@@ -502,6 +526,114 @@ reconstruct_annotations <- function(df) {
   df
 }
 
+# Prepara un data frame letto da file
+prepara_df <- function(df) {
+  df <- as.data.frame(df, stringsAsFactors = FALSE)
+  df <- normalize_uploaded_df(df)
+  if ("labels" %in% names(df)) {
+    df$labels <- as.character(df$labels)
+    df$labels <- gsub(";", "|", df$labels)
+    df$labels <- gsub("\\s*\\|\\s*", "|", df$labels)
+  }
+  df <- ensure_col(df, "SD", "")
+  df <- ensure_col(df, "labels", "")
+  df <- ensure_col(df, "commenti", "")
+  df <- ensure_col(df, "cumulo", 0)
+  df <- ensure_col(df, "cumulo_testo", "")
+  df <- ensure_col(df, "annotation.audio_file", "")
+  df <- ensure_col(df, "doc.full_conversation", "")
+  df <- ensure_col(df, "doc.full_jefferson", "")
+  df <- ensure_col(df, "Left", "")
+  df <- ensure_col(df, "KWIC", "")
+  df <- ensure_col(df, "Right", "")
+  df <- ensure_bin_cols(df, ALL_KEYS)
+  df <- reconstruct_annotations(df)
+  assegna_id(df)
+}
+
+# Numero univoco di riga: se manca viene creato (1, 2, 3...) come prima colonna;
+# se c'è, le righe senza numero ricevono i numeri successivi al massimo.
+# Le righe vengono sempre rimesse in ordine di ID, così tornano al loro posto
+# anche se il file è stato riordinato in Excel.
+assegna_id <- function(df) {
+  if (!ID_COL %in% names(df)) {
+    df <- data.frame(seq_len(nrow(df)), df, check.names = FALSE, stringsAsFactors = FALSE)
+    names(df)[1] <- ID_COL
+  } else {
+    id <- suppressWarnings(as.integer(df[[ID_COL]]))
+    mancanti <- is.na(id)
+    if (any(mancanti)) {
+      base <- if (all(mancanti)) 0L else max(id, na.rm = TRUE)
+      id[mancanti] <- base + seq_len(sum(mancanti))
+    }
+    df[[ID_COL]] <- id
+    df <- df[order(id), , drop = FALSE]
+  }
+  rownames(df) <- NULL
+  df
+}
+
+# =========================
+# LETTURA / SCRITTURA FILE SU DISCO
+# =========================
+
+leggi_file <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  if (ext %in% c("xlsx", "xls")) read_excel(path) else read_csv_robust(path)
+}
+
+# Scrive prima su un file temporaneo e poi sostituisce l'originale:
+# se qualcosa va storto a metà, il file originale resta intatto.
+scrivi_file <- function(df, path) {
+  ext <- tolower(tools::file_ext(path))
+  tmp <- tempfile(fileext = paste0(".", ext))
+  on.exit(unlink(tmp), add = TRUE)
+  
+  if (ext == "xlsx") {
+    write_xlsx(df, tmp)
+  } else {
+    sep <- detect_csv_sep(path)
+    dec <- if (sep == ";") "," else "."
+    write.table(df, tmp, sep = sep, dec = dec, row.names = FALSE, col.names = TRUE,
+                qmethod = "double", fileEncoding = "UTF-8", na = "")
+  }
+  ok <- file.copy(tmp, path, overwrite = TRUE)
+  if (!isTRUE(ok)) stop("impossibile sovrascrivere il file")
+  invisible(TRUE)
+}
+
+# =========================
+# FILE RECENTI
+# =========================
+
+leggi_recenti <- function() {
+  r <- tryCatch(readRDS(RECENTI_PATH), error = function(e) NULL)
+  if (is.null(r) || !is.data.frame(r)) {
+    return(data.frame(path = character(0), idx = integer(0), stringsAsFactors = FALSE))
+  }
+  r[file.exists(r$path), , drop = FALSE]
+}
+
+salva_recenti <- function(r) {
+  dir.create(CONFIG_DIR, recursive = TRUE, showWarnings = FALSE)
+  tryCatch(saveRDS(head(r, MAX_RECENTI), RECENTI_PATH), error = function(e) NULL)
+}
+
+segna_recente <- function(path, idx = 1L) {
+  r <- leggi_recenti()
+  r <- r[r$path != path, , drop = FALSE]
+  r <- rbind(data.frame(path = path, idx = as.integer(idx), stringsAsFactors = FALSE), r)
+  salva_recenti(r)
+}
+
+aggiorna_idx_recente <- function(path, idx) {
+  r <- leggi_recenti()
+  if (path %in% r$path) {
+    r$idx[r$path == path] <- as.integer(idx)
+    salva_recenti(r)
+  }
+}
+
 # =========================
 # UI
 # =========================
@@ -515,7 +647,7 @@ ui <- fluidPage(
       .drawer {
         position: fixed; right: 0; top: 0; width: 90vw; max-width: 1300px;
         height: 100%; background: #fff; border-left: 1px solid #ddd;
-        padding: 18px 22px; overflow-y: auto; z-index: 99999;
+        padding: 18px 22px; overflow-y: auto; z-index: 1040;
       }
       .kwic { font-weight: 700; color: #1565c0; }
       .kwic-box { font-weight: 500; margin: 8px 0 12px 0; line-height: 1.6; }
@@ -532,39 +664,98 @@ ui <- fluidPage(
       .material-right { width: 45%; }
       .title-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
       .title-wrap img { height: 44px; }
-      .nav-row { display: flex; gap: 10px; margin-bottom: 10px; }
+      .nav-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+      .autosave-note { color: #2e7d32; font-size: 0.9em; margin-left: auto; }
+      .file-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+      .file-corrente { font-size: 0.9em; color: #555; }
+      .stato-salvataggio { font-size: 0.85em; color: #2e7d32; }
+      .recenti { max-width: 700px; }
+      .recenti h4 { margin-top: 10px; }
+      .recente { display: block; padding: 8px 12px; border: 1px solid #e3e3e3; border-radius: 6px;
+                 margin-bottom: 6px; cursor: pointer; text-decoration: none !important; color: inherit; }
+      .recente:hover { background: #f5f7fa; border-color: #1565c0; }
+      .recente .nome { font-weight: 600; color: #1565c0; }
+      .recente .cartella { font-size: 0.85em; color: #777; }
       table.dataTable tbody td { vertical-align: top; }
+      #table td.col-sd { white-space: nowrap; }
+      #table td.col-commento { white-space: normal; word-break: break-word; font-size: 0.92em; }
+      .pos-occ { font-size:0.6em; color:#777; font-weight:normal; }
       .note-box { background:#f5f7fa; border-left:4px solid #1565c0; padding:10px 14px; margin-bottom:12px; font-size:0.92em; }
-    ")),
-    tags$script(HTML("
-      let isSaved = true;
-      $(document).on('click', '#save, #save_bottom', function() { isSaved = true; });
-      $(document).on('change', 'input, textarea', function() { isSaved = false; });
-      window.addEventListener('beforeunload', function (e) {
-        if (!isSaved) { e.preventDefault(); e.returnValue = ''; }
-      });
     "))
   ),
   
   div(
     class = "title-wrap",
-    tags$a(href = "[https://laboratorioparole.github.io/cosi/](https://laboratorioparole.github.io/cosi/)", target = "_blank", tags$img(src = "logo.png")),
+    tags$a(href = "https://laboratorioparole.github.io/cosi/", target = "_blank", class = "link-esterno", tags$img(src = "logo.png")),
     h3("COLÀ - Console Online per L'Annotazione (dei segnali discorsivi)")
   ),
   
   div(
-    style = "margin-bottom: 20px; max-width: 420px;",
-    fileInput("file", "Carica Excel/CSV", buttonLabel = "Sfoglia...", width = "100%"),
-    div(
-      style = "display: flex; gap: 10px; margin-top: -10px;",
-      myDownloadButton("download", "export"),
-      actionButton("open_compare", "Confronta Annotazioni (IAA)", class = "btn-info")
-    )
+    class = "file-bar",
+    shinyFilesButton("apri", "\U0001F4C2 Apri file…", "Scegli il file da annotare (Excel o CSV)",
+                     multiple = FALSE, class = "btn-primary"),
+    actionButton("open_compare", "Confronta Annotazioni (IAA)", class = "btn-info"),
+    actionButton("chiudi_file", "Chiudi file")
   ),
+  uiOutput("file_corrente"),
   
   hr(),
-  DTOutput("table"),
-  uiOutput("drawer")
+  uiOutput("recenti_ui"),
+  conditionalPanel(
+    condition = "output.file_aperto",
+    tabsetPanel(
+      id = "schede",
+      tabPanel("Occorrenze", br(), DTOutput("table")),
+      tabPanel("Statistiche", br(), uiOutput("statistiche"))
+    )
+  ),
+  uiOutput("drawer"),
+  
+  tags$script(HTML("
+    // Ogni modifica fatta a mano nel pannello invia lo stato completo dell'occorrenza.
+    // Lo stato viene letto subito (con il numero di occorrenza giusto), quindi anche
+    // se si passa all'occorrenza successiva l'ultima modifica non si perde.
+    const timers = {};
+    function statoDrawer() {
+      const d = $('.drawer');
+      if (!d.length) return null;
+      return {
+        idx: parseInt(d.attr('data-idx'), 10),
+        sd: d.find('input[name=sd]:checked').val() || '',
+        commenti: $('#commenti').val() || '',
+        cumulo: $('#cumulo').is(':checked'),
+        cumulo_testo: $('#cumulo_testo').val() || '',
+        funzioni: d.find('.micro-row input[type=checkbox]:checked').map(function () { return this.id; }).get(),
+        t: Date.now()
+      };
+    }
+    function programma(ritardo) {
+      const stato = statoDrawer();
+      if (!stato || isNaN(stato.idx)) return;
+      clearTimeout(timers[stato.idx]);
+      timers[stato.idx] = setTimeout(() => {
+        delete timers[stato.idx];
+        Shiny.setInputValue('edit', stato, { priority: 'event' });
+      }, ritardo);
+    }
+    // Clic su SD / cumulo / funzioni: salvataggio immediato
+    $(document).on('change', '.drawer input[type=checkbox], .drawer input[type=radio]', function (e) {
+      if (!e.originalEvent) return;   // ignora gli aggiornamenti fatti dal server
+      programma(0);
+    });
+    // Testo (commenti, cumulo): salvataggio dopo una breve pausa di digitazione
+    $(document).on('input', '.drawer textarea', function () { programma(500); });
+
+    // Solo i link con classe 'link-esterno' (logo, audio, conversazione, Jefferson)
+    // vengono aperti da R nel browser predefinito (o, per i file locali, con il
+    // programma predefinito). Tutti gli altri link si comportano come prima.
+    $(document).on('click', 'a.link-esterno[href]', function (e) {
+      const href = $(this).attr('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+      e.preventDefault();
+      Shiny.setInputValue('apri_link', { url: this.href || href, t: Date.now() }, { priority: 'event' });
+    });
+  "))
 )
 
 # =========================
@@ -576,63 +767,269 @@ server <- function(input, output, session) {
   df_r <- reactiveVal(NULL)
   idx <- reactiveVal(1)
   drawer <- reactiveVal(FALSE)
+  percorso <- reactiveVal(NULL)       # percorso del file aperto
+  ultimo_salvataggio <- reactiveVal(NULL)
+  tabella_ver <- reactiveVal(0)       # ridisegna la tabella solo quando serve
+  recenti_ver <- reactiveVal(0)
   
-  observeEvent(input$file, {
-    ext <- tools::file_ext(input$file$name)
-    df <- tryCatch({
-      if (ext == "xlsx") read_excel(input$file$datapath)
-      else read_csv_robust(input$file$datapath)
-    }, error = function(e) NULL)
-    
-    if (is.null(df)) return()
-    df <- as.data.frame(df)
-    
-    df <- normalize_uploaded_df(df)
-    
-    if ("labels" %in% names(df)) {
-      df$labels <- gsub(";", "|", df$labels)
-      df$labels <- gsub("\\s*\\|\\s*", "|", df$labels)
+  aggiorna_tabella <- function() tabella_ver(isolate(tabella_ver()) + 1)
+  aggiorna_recenti <- function() recenti_ver(isolate(recenti_ver()) + 1)
+  
+  # ---------- Apertura file ----------
+  
+  apri_file <- function(path) {
+    path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+    if (!file.exists(path)) {
+      showNotification("Il file non esiste più in quella posizione.", type = "error")
+      aggiorna_recenti()
+      return(invisible(FALSE))
     }
     
-    df <- ensure_col(df, "SD", "")
-    df <- ensure_col(df, "labels", "")
-    df <- ensure_col(df, "commenti", "")
-    df <- ensure_col(df, "cumulo", 0)
-    df <- ensure_col(df, "cumulo_testo", "")
-    df <- ensure_col(df, "annotation.audio_file", "")
-    df <- ensure_col(df, "doc.full_conversation", "")
-    df <- ensure_col(df, "doc.full_jefferson", "")
-    df <- ensure_col(df, "Left", "")
-    df <- ensure_col(df, "KWIC", "")
-    df <- ensure_col(df, "Right", "")
+    df <- tryCatch(leggi_file(path), error = function(e) NULL)
+    if (is.null(df) || NROW(df) == 0) {
+      showNotification("Impossibile leggere il file.", type = "error")
+      return(invisible(FALSE))
+    }
     
-    df <- ensure_bin_cols(df, ALL_KEYS)
-    df <- reconstruct_annotations(df)
+    # I vecchi .xls non si possono riscrivere: si salva accanto un .xlsx con lo stesso nome
+    if (tolower(tools::file_ext(path)) == "xls") {
+      path <- sub("\\.xls$", ".xlsx", path, ignore.case = TRUE)
+      showNotification("I file .xls vengono salvati come .xlsx con lo stesso nome.", type = "warning", duration = 8)
+    } else if (BACKUP_PRIMA_APERTURA) {
+      bak <- paste0(path, ".bak")
+      if (!file.exists(bak)) file.copy(path, bak)
+    }
     
+    aveva_id <- ID_COL %in% names(df)
+    df <- prepara_df(df)
+    if (anyDuplicated(df[[ID_COL]])) {
+      showNotification(paste0("Attenzione: nella colonna '", ID_COL, "' ci sono numeri ripetuti."),
+                       type = "warning", duration = 10)
+    }
+    
+    rec <- leggi_recenti()
+    i <- rec$idx[rec$path == path]
+    i <- if (length(i) == 1 && !is.na(i)) min(max(1L, i), nrow(df)) else 1L
+    
+    drawer(FALSE)
+    percorso(path)
     df_r(df)
-    idx(1)
+    idx(i)
+    ultimo_salvataggio(NULL)
+    segna_recente(path, i)
+    aggiorna_recenti()
+    aggiorna_tabella()
+    # Se il file non aveva ancora i numeri di riga, li scrive subito
+    if (!aveva_id) salva_su_file(df)
+    invisible(TRUE)
+  }
+  
+  volumi <- c(Utente = normalizePath(Sys.getenv("USERPROFILE", path.expand("~")), winslash = "/"),
+              getVolumes()())
+  shinyFileChoose(input, "apri", roots = volumi, filetypes = c("xlsx", "xls", "csv", "txt", "tsv"))
+  
+  observeEvent(input$apri, {
+    f <- parseFilePaths(volumi, input$apri)
+    if (nrow(f) == 0) return()
+    apri_file(as.character(f$datapath[1]))
   })
   
-  output$table <- renderDT({
+  # ---------- Link esterni: browser predefinito del sistema ----------
+  observeEvent(input$apri_link, {
+    url <- input$apri_link$url
+    if (is.null(url) || !nzchar(url)) return()
+    # Link a un file locale (es. audio): apri il file con il programma predefinito
+    if (grepl("^file:", url, ignore.case = TRUE)) {
+      url <- utils::URLdecode(sub("^file:/*", "", url, ignore.case = TRUE))
+      if (.Platform$OS.type != "windows") url <- paste0("/", url)
+    }
+    # Un indirizzo che punta al server interno dell'app (link relativo) è un file locale
+    if (grepl("^https?://(127\\.0\\.0\\.1|localhost)", url, ignore.case = TRUE)) {
+      showNotification("Questo link punta a un file interno all'app e non può essere aperto nel browser.", type = "warning")
+      return()
+    }
+    ok <- tryCatch({ utils::browseURL(url); TRUE }, error = function(e) FALSE)
+    if (!ok) showNotification(paste("Impossibile aprire:", url), type = "error")
+  })
+  
+  observeEvent(input$apri_recente, {
+    rec <- leggi_recenti()
+    i <- as.integer(input$apri_recente)
+    if (!is.na(i) && i >= 1 && i <= nrow(rec)) apri_file(rec$path[i])
+  })
+  
+  observeEvent(input$chiudi_file, {
+    drawer(FALSE)
+    df_r(NULL)
+    percorso(NULL)
+    idx(1)
+    aggiorna_recenti()
+    aggiorna_tabella()
+  })
+  
+  output$file_aperto <- reactive(!is.null(df_r()))
+  outputOptions(output, "file_aperto", suspendWhenHidden = FALSE)
+  
+  # ---------- Schermata iniziale: file recenti ----------
+  
+  output$recenti_ui <- renderUI({
+    recenti_ver()
+    if (!is.null(df_r())) return(NULL)
+    rec <- leggi_recenti()
+    if (nrow(rec) == 0) {
+      return(div(class = "recenti", p("Apri un file Excel o CSV per iniziare. Le annotazioni vengono salvate direttamente nel file.")))
+    }
+    div(
+      class = "recenti",
+      h4("File recenti"),
+      lapply(seq_len(nrow(rec)), function(i) {
+        tags$a(
+          class = "recente",
+          onclick = sprintf("Shiny.setInputValue('apri_recente', %d, {priority: 'event'})", i),
+          div(class = "nome", basename(rec$path[i])),
+          div(class = "cartella", dirname(rec$path[i]), " · occorrenza ", rec$idx[i])
+        )
+      })
+    )
+  })
+  
+  output$file_corrente <- renderUI({
+    p <- percorso()
+    if (is.null(p)) return(NULL)
+    t <- ultimo_salvataggio()
+    div(
+      span(class = "file-corrente", "\U0001F4C4 ", p),
+      if (!is.null(t)) span(class = "stato-salvataggio", " — salvato alle ", format(t, "%H:%M:%S"))
+    )
+  })
+  
+  # ---------- Ogni modifica viene scritta subito nel file ----------
+  
+  errore_mostrato <- FALSE
+  salva_su_file <- function(df) {
+    p <- isolate(percorso())
+    if (is.null(p)) return()
+    ok <- tryCatch({ scrivi_file(df, p); TRUE }, error = function(e) FALSE)
+    if (ok) {
+      ultimo_salvataggio(Sys.time())
+      errore_mostrato <<- FALSE
+    } else if (!errore_mostrato) {
+      errore_mostrato <<- TRUE
+      showNotification(
+        "Impossibile salvare nel file. È aperto in Excel? Chiudilo: il salvataggio riprenderà alla prossima modifica.",
+        type = "error", duration = NULL
+      )
+    }
+  }
+  
+  observeEvent(input$edit, {
+    s <- input$edit
     df <- df_r()
     req(df)
+    i <- suppressWarnings(as.integer(s$idx))
+    if (length(i) != 1 || is.na(i) || i < 1 || i > nrow(df)) return()
     
-    view <- data.frame(
+    sd <- if (is.null(s$sd)) "" else as.character(s$sd)
+    funzioni_spuntate <- as.character(unlist(s$funzioni))
+    attive <- if (sd == "SD") funzioni_spuntate else character(0)
+    cumulo <- isTRUE(s$cumulo)
+    
+    df$SD[i] <- sd
+    df$commenti[i] <- if (is.null(s$commenti)) "" else as.character(s$commenti)
+    df$cumulo[i] <- as.numeric(cumulo)
+    df$cumulo_testo[i] <- if (cumulo && !is.null(s$cumulo_testo)) as.character(s$cumulo_testo) else ""
+    for (id in ALL_IDS) df[[id]][i] <- as.numeric(id %in% attive)
+    df$labels[i] <- paste(ALL_KEYS[ALL_IDS %in% attive], collapse = "|")
+    df_r(df)
+    salva_su_file(df)
+    
+    # Se l'occorrenza non è SD, togli le spunte anche a schermo
+    if (sd != "SD" && length(funzioni_spuntate) > 0 && i == idx()) {
+      for (id in ALL_IDS) updateCheckboxInput(session, id, value = FALSE)
+    }
+    # Se il cumulo è stato tolto, svuota anche il campo di testo
+    if (!cumulo && i == idx()) updateTextAreaInput(session, "cumulo_testo", value = "")
+  })
+  
+  # Ricorda su quale occorrenza eri, per riprendere da lì
+  observeEvent(idx(), {
+    p <- percorso()
+    if (!is.null(p)) aggiorna_idx_recente(p, idx())
+  })
+  
+  # ---------- Tabella principale ----------
+  
+  tabella_view <- function(df) {
+    data.frame(
+      N. = df[[ID_COL]],
       Occorrenza = paste0(df$Left, " <span class='kwic'>", df$KWIC, "</span> ", df$Right),
       SD = df$SD,
       Funzioni = gsub("\\|", "; ", df$labels),
-      Commento = substr(df$commenti, 1, 40),
+      Commento = as.character(df$commenti),
+      check.names = FALSE,
       stringsAsFactors = FALSE
     )
+  }
+  
+  output$table <- renderDT({
+    tabella_ver()
+    df <- isolate(df_r())
+    req(df)
     
-    datatable(view, escape = FALSE, selection = "single", rownames = FALSE,
-              options = list(scrollY = "600px", paging = FALSE, dom = "tip"))
+    datatable(
+      tabella_view(df), escape = FALSE, selection = "single", rownames = FALSE,
+      filter = "top",
+      options = list(
+        scrollY = "600px", paging = FALSE, dom = "ftip", autoWidth = TRUE,
+        search = list(caseInsensitive = TRUE, regex = FALSE),
+        initComplete = JS(
+          "function() {",
+          "  $(this.api().table().container()).find('thead input[type=search]').attr('placeholder', 'filtra');",
+          "}"
+        ),
+        language = list(
+          search = "Cerca in tutti i campi:",
+          info = "_TOTAL_ occorrenze", infoFiltered = "(filtrate da _MAX_)",
+          infoEmpty = "Nessuna occorrenza", zeroRecords = "Nessun risultato"
+        ),
+        columnDefs = list(
+          # Larghezze: l'occorrenza prende lo spazio, SD e N. il minimo, il commento va a capo
+          list(targets = 0, width = "40px"),
+          list(targets = 1, width = "55%"),
+          list(targets = 2, width = "60px", className = "col-sd"),
+          list(targets = 3, width = "20%"),
+          list(targets = 4, width = "15%", className = "col-commento", render = JS(
+            "function(d, t) {",
+            "  if (t !== 'display') return d;",
+            "  return $('<div>').text(d || '').html();",
+            "}"
+          ))
+        )
+      )
+    )
   })
+  
+  # Aggiorna i dati della tabella senza perdere ricerca, filtri e ordinamento
+  proxy_tabella <- dataTableProxy("table")
+  aggiorna_righe <- function() {
+    df <- isolate(df_r())
+    if (is.null(df)) return()
+    replaceData(proxy_tabella, tabella_view(df), resetPaging = FALSE, rownames = FALSE)
+  }
+  
+  # Ordine delle righe come appare ora in tabella (dopo ricerca, filtri e ordinamento)
+  ordine_corrente <- function() {
+    n <- nrow(df_r())
+    o <- input$table_rows_all
+    if (is.null(o) || length(o) == 0) seq_len(n) else o
+  }
   
   observeEvent(input$table_rows_selected, {
     idx(input$table_rows_selected)
     drawer(TRUE)
   })
+  
+  # ---------- Pannello di dettaglio ----------
   
   output$drawer <- renderUI({
     if (!drawer()) return(NULL)
@@ -643,13 +1040,31 @@ server <- function(input, output, session) {
     
     r <- df_snapshot[current_idx, ]
     total_n <- nrow(df_snapshot)
+    sd_sel <- if (is.na(r$SD) || !nzchar(as.character(r$SD))) character(0) else as.character(r$SD)
+    cumulo_val <- !is.na(r$cumulo) && as.numeric(r$cumulo) == 1
+    
+    casella <- function(k) {
+      id <- safe_id(k)
+      val <- r[[id]]
+      val <- !is.na(val) && as.numeric(val) == 1
+      div(class = "micro-row",
+          div(class = "micro-label", k, span("i", class = "i", title = DEFINIZIONI[[k]])),
+          checkboxInput(id, NULL, value = val))
+    }
     
     tagList(
       div(
         class = "drawer",
+        `data-idx` = current_idx,
         div(
           style = "display:flex; justify-content:space-between; align-items:center;",
-          h3(paste0("Dettaglio - Occorrenza ", current_idx, "/", total_n)),
+          {
+            o <- isolate(ordine_corrente())
+            pos <- match(current_idx, o)
+            h3(paste0("Occorrenza n. ", r[[ID_COL]]),
+               if (!is.na(pos)) span(class = "pos-occ",
+                                     sprintf(" (%d di %d%s)", pos, length(o), if (length(o) < total_n) " nella selezione" else "")))
+          },
           actionButton("close", "x", style = "border:none; background:none; font-size:22px;")
         ),
         hr(),
@@ -657,7 +1072,7 @@ server <- function(input, output, session) {
           class = "nav-row",
           actionButton("prev_occ", "\U00002B05 Occorrenza precedente"),
           actionButton("next_occ", "Occorrenza successiva \U000027A1"),
-          actionButton("save", "\U0001F4BE salva occorrenza", style = "font-weight:bold;")
+          span(class = "autosave-note", "\U00002714 Le modifiche vengono salvate nel file automaticamente")
         ),
         hr(),
         div(
@@ -665,11 +1080,11 @@ server <- function(input, output, session) {
           div(
             class = "material-left",
             h4("Materiali"),
-            if (nzchar(r$`annotation.audio_file`)) tags$a("\U0001F3A7 Audio", href = r$`annotation.audio_file`, target = "_blank"),
+            if (nzchar(r$`annotation.audio_file`)) tags$a("\U0001F3A7 Audio", href = r$`annotation.audio_file`, target = "_blank", class = "link-esterno"),
             br(),
-            if (nzchar(r$`doc.full_conversation`)) tags$a("\U0001F4C4 Conversazione", href = r$`doc.full_conversation`, target = "_blank"),
+            if (nzchar(r$`doc.full_conversation`)) tags$a("\U0001F4C4 Conversazione", href = r$`doc.full_conversation`, target = "_blank", class = "link-esterno"),
             br(),
-            if (nzchar(r$`doc.full_jefferson`)) tags$a("\U0001F4C4 Jefferson", href = r$`doc.full_jefferson`, target = "_blank"),
+            if (nzchar(r$`doc.full_jefferson`)) tags$a("\U0001F4C4 Jefferson", href = r$`doc.full_jefferson`, target = "_blank", class = "link-esterno"),
             br(),
             tags$a("\U0001F50D Guida alle funzioni", href = "https://laboratorioparole.github.io/cosi/guida-funzioni.html", target = "_blank"),
             hr(),
@@ -677,10 +1092,10 @@ server <- function(input, output, session) {
               column(8,
                      h4("Occorrenza"),
                      div(class = "kwic-box", HTML(paste0(r$Left, " <span class='kwic'>", r$KWIC, "</span> ", r$Right))),
-                     radioButtons("sd", "SD", choices = c("Non SD", "SD"), selected = character(0), inline = TRUE)
+                     radioButtons("sd", "SD", choices = c("Non SD", "SD"), selected = sd_sel, inline = TRUE)
               ),
               column(4,
-                     checkboxInput("cumulo", "Cumulo", value = !is.na(r$cumulo) && as.numeric(r$cumulo) == 1),
+                     checkboxInput("cumulo", "Cumulo", value = cumulo_val),
                      conditionalPanel(
                        condition = "input.cumulo == true",
                        textAreaInput("cumulo_testo", NULL, value = ifelse(is.na(r$cumulo_testo), "", r$cumulo_testo), width = "100%", height = "70px", placeholder = "Elementi in cumulo...")
@@ -690,114 +1105,128 @@ server <- function(input, output, session) {
           ),
           div(
             class = "material-right",
-            textAreaInput("commenti", "Commenti", value = r$commenti, width = "100%", height = "90px")
+            textAreaInput("commenti", "Commenti", value = ifelse(is.na(r$commenti), "", r$commenti), width = "100%", height = "90px")
           )
         ),
         
         conditionalPanel(
           condition = "input.sd == 'SD'",
           fluidRow(
-            column(4,
-                   h4("Interazionali"),
-                   lapply(INTERAZIONALI, function(k) {
-                     id <- safe_id(k)
-                     val <- r[[id]]
-                     val <- !is.na(val) && as.numeric(val) == 1
-                     div(class = "micro-row",
-                         div(class = "micro-label", k, span("i", class = "i", title = DEFINIZIONI[[k]])),
-                         checkboxInput(id, NULL, value = val))
-                   })
-            ),
-            column(4,
-                   h4("Metatestuali"),
-                   lapply(METATESTUALI, function(k) {
-                     id <- safe_id(k)
-                     val <- r[[id]]
-                     val <- !is.na(val) && as.numeric(val) == 1
-                     div(class = "micro-row",
-                         div(class = "micro-label", k, span("i", class = "i", title = DEFINIZIONI[[k]])),
-                         checkboxInput(id, NULL, value = val))
-                   })
-            ),
-            column(4,
-                   h4("Cognitive"),
-                   lapply(COGNITIVE, function(k) {
-                     id <- safe_id(k)
-                     val <- r[[id]]
-                     val <- !is.na(val) && as.numeric(val) == 1
-                     div(class = "micro-row",
-                         div(class = "micro-label", k, span("i", class = "i", title = DEFINIZIONI[[k]])),
-                         checkboxInput(id, NULL, value = val))
-                   })
-            )
+            column(4, h4("Interazionali"), lapply(INTERAZIONALI, casella)),
+            column(4, h4("Metatestuali"),  lapply(METATESTUALI, casella)),
+            column(4, h4("Cognitive"),     lapply(COGNITIVE, casella))
           )
         ),
         hr(),
         div(
           class = "nav-row",
           actionButton("prev_occ_bottom", "\U00002B05 Occorrenza precedente"),
-          actionButton("next_occ_bottom", "Occorrenza successiva \U000027A1"),
-          actionButton("save_bottom", "\U0001F4BE salva occorrenza", style = "font-weight:bold;")
+          actionButton("next_occ_bottom", "Occorrenza successiva \U000027A1")
         ),
         hr(),
-        actionButton("close", "chiudi")
+        actionButton("close_bottom", "chiudi")
       )
     )
   })
   
-  observeEvent(input$close, { drawer(FALSE) })
-  observeEvent(input$prev_occ, { if (idx() > 1) idx(idx() - 1) })
-  observeEvent(input$prev_occ_bottom, { if (idx() > 1) idx(idx() - 1) })
-  observeEvent(input$next_occ, { req(df_r()); if (idx() < nrow(df_r())) idx(idx() + 1) })
-  observeEvent(input$next_occ_bottom, { req(df_r()); if (idx() < nrow(df_r())) idx(idx() + 1) })
-  
-  observe({
-    req(df_r())
-    r <- df_r()[idx(), ]
-    if (is.null(r)) return()
-    
-    selected_sd <- if (is.null(r$SD) || is.na(r$SD) || !nzchar(as.character(r$SD))) character(0) else as.character(r$SD)
-    updateRadioButtons(session, "sd", selected = selected_sd)
-    updateTextAreaInput(session, "commenti", value = ifelse(is.na(r$commenti), "", r$commenti))
-    updateCheckboxInput(session, "cumulo", value = !is.na(r$cumulo) && as.numeric(r$cumulo) == 1)
-    updateTextAreaInput(session, "cumulo_testo", value = ifelse(is.na(r$cumulo_testo), "", r$cumulo_testo))
-    
-    for (k in ALL_KEYS) {
-      id <- safe_id(k)
-      val <- suppressWarnings(as.numeric(r[[id]]))
-      updateCheckboxInput(session, id, value = !is.na(val) && val == 1)
-    }
-  })
-  
-  observeEvent(input$sd, {
-    if (!identical(input$sd, "SD")) {
-      for (k in ALL_KEYS) updateCheckboxInput(session, safe_id(k), value = FALSE)
-    }
-  })
-  
-  save_current <- function() {
-    df <- df_r()
-    i <- idx()
-    
-    df$SD[i] <- if (is.null(input$sd)) "" else input$sd
-    df$commenti[i] <- input$commenti
-    df$cumulo[i] <- ifelse(isTRUE(input$cumulo), 1, 0)
-    df$cumulo_testo[i] <- ifelse(isTRUE(input$cumulo), input$cumulo_testo, "")
-    
-    selected <- c()
-    for (k in ALL_KEYS) {
-      id <- safe_id(k)
-      val <- isTRUE(input[[id]])
-      df[[id]][i] <- ifelse(val, 1, 0)
-      if (val) selected <- c(selected, k)
-    }
-    
-    df$labels[i] <- paste(selected, collapse = "|")
-    df_r(df)
+  chiudi_drawer <- function() {
+    drawer(FALSE)
+    aggiorna_righe()   # mostra le annotazioni aggiornate, mantenendo ricerca e ordinamento
   }
+  observeEvent(input$close, chiudi_drawer())
+  observeEvent(input$close_bottom, chiudi_drawer())
   
-  observeEvent(input$save, save_current())
-  observeEvent(input$save_bottom, save_current())
+  # Precedente/successiva seguono l'ordine e la ricerca attuali della tabella
+  vai <- function(passo) {
+    req(df_r())
+    o <- ordine_corrente()
+    pos <- match(idx(), o)
+    if (is.na(pos)) {
+      nuovo <- idx() + passo
+      if (nuovo >= 1 && nuovo <= nrow(df_r())) idx(nuovo)
+      return()
+    }
+    np <- pos + passo
+    if (np >= 1 && np <= length(o)) idx(o[np])
+  }
+  vai_prec <- function() vai(-1)
+  vai_succ <- function() vai(1)
+  observeEvent(input$prev_occ, vai_prec())
+  observeEvent(input$prev_occ_bottom, vai_prec())
+  observeEvent(input$next_occ, vai_succ())
+  observeEvent(input$next_occ_bottom, vai_succ())
+  
+  # ================= SCHEDA STATISTICHE =================
+  output$statistiche <- renderUI({
+    df <- df_r()
+    req(df)
+    
+    sd <- as.character(df$SD)
+    n_tot <- nrow(df)
+    n_sd <- sum(sd == "SD")
+    n_nonsd <- sum(sd == "Non SD")
+    n_ann <- n_sd + n_nonsd
+    
+    dsd <- df[sd == "SD", , drop = FALSE]
+    m <- as.matrix(dsd[, ALL_IDS, drop = FALSE])
+    storage.mode(m) <- "numeric"
+    m1 <- !is.na(m) & m == 1
+    n_micro <- colSums(m1)
+    n_macro <- colSums(macro_matrice(dsd))
+    senza_funzione <- sum(rowSums(m1) == 0)
+    media_funz <- if (n_sd > 0) mean(rowSums(m1)) else NA
+    
+    pct <- function(n) if (n_sd == 0) "—" else sprintf("%.1f%%", 100 * n / n_sd)
+    
+    tabella_freq <- function(etichette, n, gruppo = NULL) {
+      ord <- order(-n, etichette)
+      tags$table(
+        class = "table table-striped table-sm",
+        tags$thead(tags$tr(
+          tags$th("#"), tags$th("Funzione"),
+          if (!is.null(gruppo)) tags$th("Macro"),
+          tags$th("Occorrenze"), tags$th("% su SD")
+        )),
+        tags$tbody(lapply(seq_along(ord), function(k) {
+          i <- ord[k]
+          tags$tr(
+            tags$td(k), tags$td(etichette[i]),
+            if (!is.null(gruppo)) tags$td(gruppo[i]),
+            tags$td(n[i]), tags$td(pct(n[i]))
+          )
+        }))
+      )
+    }
+    
+    riga <- function(l, v) tags$tr(tags$td(l), tags$td(v))
+    
+    tagList(
+      h4("Riepilogo"),
+      tags$table(
+        class = "table table-bordered", style = "width:auto;",
+        riga("Occorrenze totali", n_tot),
+        riga("Annotate (SD o Non SD)", sprintf("%d (%.0f%%)", n_ann, if (n_tot) 100 * n_ann / n_tot else 0)),
+        riga("SD", n_sd),
+        riga("Non SD", n_nonsd),
+        riga("Funzioni medie per SD", if (is.na(media_funz)) "—" else sprintf("%.2f", media_funz)),
+        riga("SD senza funzioni assegnate", sprintf("%d (%s)", senza_funzione, pct(senza_funzione)))
+      ),
+      tags$small(class = "text-muted",
+                 "Le funzioni sono contate sulle occorrenze annotate come SD. Un'occorrenza può avere più funzioni, ",
+                 "quindi le percentuali possono superare il 100% se sommate."),
+      hr(),
+      fluidRow(
+        column(5,
+               h4("Macrofunzioni"),
+               tabella_freq(names(n_macro), as.numeric(n_macro))
+        ),
+        column(7,
+               h4("Microfunzioni"),
+               tabella_freq(ALL_KEYS, as.numeric(n_micro), gruppo = unname(MACRO_DI[ALL_IDS]))
+        )
+      )
+    )
+  })
   
   # ================= MODALE CONFRONTO (IAA) =================
   observeEvent(input$open_compare, {
@@ -860,10 +1289,22 @@ server <- function(input, output, session) {
       df_ref <- reconstruct_annotations(df_ref)
       
       df_curr <- df_r()
-      n <- min(nrow(df_curr), nrow(df_ref))
+      id_ref <- if (ID_COL %in% names(df_ref)) suppressWarnings(as.integer(df_ref[[ID_COL]])) else NULL
       
-      df1 <- df_curr[1:n, , drop = FALSE]
-      df2 <- df_ref[1:n, , drop = FALSE]
+      if (!is.null(id_ref) && any(!is.na(id_ref))) {
+        # Entrambi i file hanno il numero di riga: si confrontano le stesse righe anche se riordinate
+        comuni <- intersect(df_curr[[ID_COL]], id_ref[!is.na(id_ref)])
+        df1 <- df_curr[match(comuni, df_curr[[ID_COL]]), , drop = FALSE]
+        df2 <- df_ref[match(comuni, id_ref), , drop = FALSE]
+        n <- length(comuni)
+        allineamento <- "per numero di riga"
+      } else {
+        n <- min(nrow(df_curr), nrow(df_ref))
+        df1 <- df_curr[seq_len(n), , drop = FALSE]
+        df2 <- df_ref[seq_len(n), , drop = FALSE]
+        allineamento <- "per posizione (il file di riferimento non ha la colonna id_riga)"
+      }
+      if (n == 0) return(NULL)
       
       df1 <- ensure_bin_cols(df1, ALL_KEYS)
       df2 <- ensure_bin_cols(df2, ALL_KEYS)
@@ -933,6 +1374,8 @@ server <- function(input, output, session) {
       incProgress(0.20, detail = "100% - Generazione tabelle completata!")
       
       list(
+        allineamento = allineamento,
+        n_allineati = n,
         n_sd = nrow(df1_sd),
         n_fn = n_fn,
         res_sd = res_sd,
@@ -1029,6 +1472,7 @@ server <- function(input, output, session) {
         class = "note-box",
         tags$p(strong("Riepilogo token per il confronto:")),
         tags$ul(
+          tags$li(strong("Allineamento: "), d$n_allineati, " righe confrontate ", d$allineamento, "."),
           tags$li(strong("Stadio 1 — Identificazione SD: "), d$n_sd, " token valutati."),
           tags$li(strong("Stadio 2 — Funzioni: "), d$n_fn, " token in cui entrambi gli annotatori hanno assegnato SD = 'SD'.")
         ),
@@ -1076,13 +1520,6 @@ server <- function(input, output, session) {
       )
     )
   })
-  
-  output$download <- downloadHandler(
-    filename = function() { "annotato.csv" },
-    content = function(file) {
-      write.csv(df_r(), file, row.names = FALSE, fileEncoding = "UTF-8")
-    }
-  )
 }
 
 shinyApp(ui, server)
