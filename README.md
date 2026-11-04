@@ -12,7 +12,7 @@ COLÀ può essere utilizzato in due modi:
 
 1. **Caricamento del file**: tramite il pulsante "Sfoglia..." si carica un file Excel (.xlsx) o CSV contenente le occorrenze da annotare. Il file viene caricato interamente in tabella.
 
-2. **Selezione dell'occorrenza**: cliccando su una riga della tabella si apre un pannello laterale ("drawer") con il dettaglio dell'occorrenza, mostrata nel suo contesto (contesto sinistro — parola chiave evidenziata — contesto destro).
+2. **Selezione dell'occorrenza**: cliccando su una riga della tabella si apre un pannello laterale con il dettaglio dell'occorrenza, mostrata nel suo contesto (contesto sinistro — parola chiave evidenziata — contesto destro).
 
 3. **Annotazione della singola occorrenza**:
    - si stabilisce se l'occorrenza è un Segnale Discorsivo (SD) o Non SD tramite il selettore dedicato;
@@ -20,13 +20,32 @@ COLÀ può essere utilizzato in due modi:
    - è possibile segnalare un **cumulo** (presenza di altri segnali discorsivi adiacenti) e annotare quali elementi lo compongono in un campo di testo dedicato;
    - è disponibile un campo di commento libero per osservazioni aggiuntive.
 
-4. **Salvataggio dell'occorrenza**: è indispensabile premere il pulsante "salva occorrenza" dopo aver compilato i campi di una riga, prima di passare a quella successiva. Le modifiche non salvate vengono perse se si cambia occorrenza senza aver salvato. L'applicazione mostra un avviso del browser se si tenta di chiudere la pagina con modifiche non salvate.
+4. [Solo per la versione web] **Salvataggio dell'occorrenza**: è indispensabile premere il pulsante "salva occorrenza" dopo aver compilato i campi di una riga, prima di passare a quella successiva. Le modifiche non salvate vengono perse se si cambia occorrenza senza aver salvato. L'applicazione mostra un avviso del browser se si tenta di chiudere la pagina con modifiche non salvate.
 
 5. **Navigazione**: i pulsanti "Occorrenza precedente" / "Occorrenza successiva" permettono di scorrere le righe della tabella senza dover chiudere e riaprire il pannello.
 
-### Attenzione: nessun salvataggio persistente automatico
+### [Solo per l'app desktop] Salvataggio delle annotazioni
 
-In questa versione dell'applicazione **i dati non vengono conservati in memoria tra una sessione e l'altra** e non esiste alcun salvataggio automatico su server o su file esterno. Questo significa che:
+Nell'app desktop le annotazioni vengono **scritte direttamente nel file aperto**, a ogni modifica: non c'è un pulsante "salva occorrenza" e non serve esportare. Il file sul computer è sempre aggiornato e non vengono create copie rinominate.
+
+- per iniziare si apre il file Excel o CSV con **"Apri file…"**, che mostra le cartelle del computer a partire da quella dell'utente;
+- ogni annotazione (SD, funzioni, cumulo, commenti) viene salvata subito nel file; sotto i pulsanti compaiono il percorso del file e l'ora dell'ultimo salvataggio;
+- alla prima apertura di un file l'app crea, una sola volta, una **copia di sicurezza** accanto all'originale con estensione `.bak` (ad esempio `corpus.xlsx.bak`), che contiene il file com'era prima di qualsiasi annotazione;
+- all'avvio l'app mostra l'elenco dei **file recenti**: cliccandone uno si riprende il lavoro dall'occorrenza su cui ci si era fermati;
+- **"Chiudi file"** chiude il file senza cancellare nulla: le annotazioni restano salvate nel file.
+
+Al primo salvataggio vengono aggiunte al file le colonne di annotazione (`SD`, `labels`, `commenti`, `cumulo`, `cumulo_testo` e una colonna per ogni funzione) e la colonna `id_riga`, che numera le occorrenze. Grazie a `id_riga`, se il file viene riordinato in Excel, alla riapertura nell'app le occorrenze tornano nell'ordine originale.
+
+Alcune avvertenze:
+
+- **il file non deve essere aperto in Excel mentre si annota**: Windows lo blocca e l'app non riesce a salvare. In quel caso compare un avviso; chiudendo il file in Excel, il salvataggio riprende alla modifica successiva;
+- se il file Excel ha **più fogli**, l'app legge e riscrive solo il primo: gli altri fogli vengono persi (restano solo nella copia `.bak`);
+- i file in formato `.xls` (Excel 97-2003) vengono salvati come `.xlsx` con lo stesso nome, accanto all'originale;
+- i link ad audio, conversazione e trascrizione Jefferson si aprono nel browser predefinito (o, se puntano a un file sul computer, con il programma predefinito).
+
+### [Solo per la versione web] Attenzione: nessun salvataggio persistente automatico
+
+In questa versione dell'applicazione web **i dati non vengono conservati in memoria tra una sessione e l'altra** e non esiste alcun salvataggio automatico su server o su file esterno. Questo significa che:
 
 - ogni sessione di lavoro parte dal file caricato in quel momento;
 - tutte le annotazioni fatte esistono solo nella sessione attiva del browser;
