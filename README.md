@@ -4,7 +4,7 @@ COLÀ è un'applicazione Shiny per l'annotazione manuale di segnali discorsivi (
 
 COLÀ può essere utilizzato in due modi:
  - online, tramite un'[interfaccia dedicata](https://laboratorioparole.github.io/cola/) (_Attenzione_: sarà necessario esportare ogni volta il file annotato)
- - può essere utilizzata [installandola sul proprio PC o Mac](https://github.com/LaboratorioPAROLE/cola/releases)
+ - può essere utilizzata [installandola sul proprio PC o Mac](https://github.com/LaboratorioPAROLE/cola/releases).
 
 ---
 
