@@ -1,8 +1,10 @@
 # COLÀ - Console Online per L'Annotazione (dei segnali discorsivi)
 
-COLÀ è un'applicazione Shiny per l'annotazione manuale di segnali discorsivi (SD), basata sul formato di concordanza KWIC, e compatibile con il formato di esportazione delle occorrenze dal corpus [KIParla](https://kiparla.it/). Ogni riga della tabella rappresenta un'occorrenza da valutare, mostrata includendo il contesto sinistro e destro, e per ciascuna occorrenza l'annotatore/trice decide se si tratta di un segnale discorsivo e, in caso affermativo, quali funzioni pragmatiche esso realizza, seguendo lo schema di annotazione del progetto [COSÌ](https://github.com/LaboratorioPAROLE/cosi).
+COLÀ è un'applicazione Shiny per l'annotazione manuale di segnali discorsivi (SD), basata sul formato di concordanza KWIC, e compatibile con il formato di esportazione delle occorrenze dal corpus [KIParla](https://kiparla.it/). Ogni riga della tabella rappresenta un'occorrenza da annotare, mostrata includendo il contesto sinistro e destro, e per ciascuna occorrenza l'annotatore/trice decide se si tratta di un segnale discorsivo e, in caso affermativo, quali funzioni discorsive esso realizza, seguendo lo schema di annotazione del progetto [COSÌ](https://github.com/LaboratorioPAROLE/cosi). L'applicazione include inoltre un modulo di confronto tra due annotazioni  di uno stesso SD, ovvero Inter-Annotator Agreement, descritto nella [seconda parte di questo documento](https://github.com/LaboratorioPAROLE/cola/#analisi-dellinter-annotator-agreement-iaa).
 
-L'applicazione include inoltre un modulo di confronto tra due annotazioni (Inter-Annotator Agreement), descritto nella seconda parte di questo documento.
+COLÀ può essere utilizzato in due modi:
+ - online, tramite un'[interfaccia dedicata](https://laboratorioparole.github.io/cola/) (_Attenzione_: sarà necessario esportare ogni volta il file annotato)
+ - può essere utilizzata[installandola sul proprio PC o Mac](https://github.com/LaboratorioPAROLE/cola/releases)
 
 ---
 
