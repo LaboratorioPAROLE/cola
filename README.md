@@ -16,11 +16,11 @@ Le due versioni condividono lo schema di annotazione e il modulo IAA, ma differi
 | Apertura del file | "Sfoglia..." | "Apri file…" e elenco dei file recenti |
 | Salvataggio dell'occorrenza | pulsante "salva occorrenza" | automatico, a ogni modifica |
 | Salvataggio del lavoro | export in CSV, da ricaricare alla sessione successiva | direttamente nel file aperto |
-| Copia di sicurezza del file originale | — | sì (`.bak`) |
-| Numero univoco di riga (`id_riga`) | — | sì |
-| Ricerca e filtri nella tabella | — | sì |
-| Scheda "Statistiche" | — | sì |
-| Scheda "Test" | — | sì |
+| Copia di sicurezza del file originale | - | sì (`.bak`) |
+| Numero univoco di riga (`id_riga`) | - | sì |
+| Ricerca e filtri nella tabella | - | sì |
+| Scheda "Statistiche" | - | sì |
+| Scheda "Test" | - | sì |
 
 ---
 
@@ -36,7 +36,7 @@ L'installer non è firmato digitalmente, quindi al primo avvio Windows può most
 
 1. **Apertura del file**: si apre un file Excel (.xlsx) o CSV contenente le occorrenze da annotare, con il pulsante "Sfoglia..." nella versione web o "Apri file…" nella versione locale. Il file viene caricato interamente in tabella.
 
-2. **Selezione dell'occorrenza**: cliccando su una riga della tabella si apre un pannello laterale con il dettaglio dell'occorrenza, mostrata nel suo contesto (contesto sinistro — parola chiave evidenziata — contesto destro).
+2. **Selezione dell'occorrenza**: cliccando su una riga della tabella si apre un pannello laterale con il dettaglio dell'occorrenza, mostrata nel suo contesto (contesto sinistro - parola chiave evidenziata - contesto destro).
 
 3. **Annotazione della singola occorrenza**:
    - [solo versione locale] se sono stati definiti dei test (vedi [Scheda "Test"](#scheda-test)), si spuntano quelli superati dall'occorrenza;
@@ -175,7 +175,7 @@ Le occorrenze dei due file vengono abbinate:
 - **per numero di riga** (`id_riga`), nella versione locale, quando entrambi i file contengono questa colonna: il confronto è quindi corretto anche se uno dei due file è stato riordinato;
 - **per posizione** (prima riga con prima riga, e così via) negli altri casi, e sempre nella versione web: in questo caso i due file devono avere le occorrenze nello stesso ordine.
 
-Poiché a ciascuna occorrenza può essere assegnata più di un'etichetta contemporaneamente (annotazione multilabel), il confronto delle funzioni viene condotto a due livelli — **Macrofunzioni** e **Microfunzioni** — e secondo tre modalità di confronto tra insiemi: **Exact-Match**, **Soft-Match** e **Jaccard-Match**. A questi si aggiungono il confronto al **Livello SD** e l'analisi della **Polifunzionalità**.
+Poiché a ciascuna occorrenza può essere assegnata più di un'etichetta contemporaneamente (annotazione multilabel), il confronto delle funzioni viene condotto a due livelli - **Macrofunzioni** e **Microfunzioni** - e secondo tre modalità di confronto tra insiemi: **Exact-Match**, **Soft-Match** e **Jaccard-Match**. A questi si aggiungono il confronto al **Livello SD** e l'analisi della **Polifunzionalità**.
 
 ### Il filtraggio dei token
 
