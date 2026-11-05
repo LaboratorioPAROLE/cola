@@ -1,65 +1,131 @@
 # COLÀ - Console Online per L'Annotazione (dei segnali discorsivi)
 
-COLÀ è un'applicazione Shiny per l'annotazione manuale di segnali discorsivi (SD), basata sul formato di concordanza KWIC, e compatibile con il formato di esportazione delle occorrenze dal corpus [KIParla](https://kiparla.it/). Ogni riga della tabella rappresenta un'occorrenza da annotare, mostrata includendo il contesto sinistro e destro, e per ciascuna occorrenza l'annotatore/trice decide se si tratta di un segnale discorsivo e, in caso affermativo, quali funzioni discorsive esso realizza, seguendo lo schema di annotazione del progetto [COSÌ](https://github.com/LaboratorioPAROLE/cosi). L'applicazione include inoltre un modulo di confronto tra due annotazioni  di uno stesso SD, ovvero Inter-Annotator Agreement, descritto nella [seconda parte di questo documento](https://github.com/LaboratorioPAROLE/cola/#analisi-dellinter-annotator-agreement-iaa).
+COLÀ è un'applicazione Shiny per l'annotazione manuale di segnali discorsivi (SD), basata sul formato di concordanza KWIC e compatibile con il formato di esportazione delle occorrenze dal corpus [KIParla](https://kiparla.it/). Ogni riga della tabella rappresenta un'occorrenza da annotare, mostrata con il contesto sinistro e destro. Per ciascuna occorrenza l'annotatore/trice decide se si tratta di un segnale discorsivo e, in caso affermativo, quali funzioni discorsive esso realizza, seguendo lo schema di annotazione del progetto [COSÌ](https://github.com/LaboratorioPAROLE/cosi). L'applicazione include inoltre un modulo di confronto tra due annotazioni di uno stesso SD (Inter-Annotator Agreement), descritto nella [seconda parte di questo documento](https://github.com/LaboratorioPAROLE/cola/#analisi-dellinter-annotator-agreement-iaa).
 
-COLÀ può essere utilizzato in due modi:
- - online, tramite un'[interfaccia dedicata](https://laboratorioparole.github.io/cola/) (_Attenzione_: sarà necessario esportare ogni volta il file annotato)
- - può essere utilizzata [installandola sul proprio PC o Mac](https://github.com/LaboratorioPAROLE/cola/releases)
+## Versioni disponibili
+
+COLÀ è disponibile in due versioni:
+
+- **versione web**, utilizzabile direttamente nel browser tramite l'[interfaccia dedicata](https://laboratorioparole.github.io/cola/), senza installare nulla;
+- **versione locale**, da [installare sul proprio computer](https://github.com/LaboratorioPAROLE/cola/releases).
+
+Le due versioni condividono lo schema di annotazione e il modulo IAA, ma differiscono nel modo in cui i file vengono aperti e salvati e in alcune funzioni aggiuntive presenti solo nella versione locale.
+
+| | Versione web | Versione locale |
+|---|---|---|
+| Apertura del file | "Sfoglia..." | "Apri file…" e elenco dei file recenti |
+| Salvataggio dell'occorrenza | pulsante "salva occorrenza" | automatico, a ogni modifica |
+| Salvataggio del lavoro | export in CSV, da ricaricare alla sessione successiva | direttamente nel file aperto |
+| Copia di sicurezza del file originale | — | sì (`.bak`) |
+| Numero univoco di riga (`id_riga`) | — | sì |
+| Ricerca e filtri nella tabella | — | sì |
+| Scheda "Statistiche" | — | sì |
+| Scheda "Test" | — | sì |
+
+---
+
+## Installazione della versione locale
+
+Dalla pagina delle [release](https://github.com/LaboratorioPAROLE/cola/releases) si scarica l'installer (`.exe`) e lo si avvia. L'applicazione include già tutto il necessario: non serve installare R.
+
+L'installer non è firmato digitalmente, quindi al primo avvio Windows può mostrare l'avviso "Windows ha protetto il PC". Per procedere si clicca su **Ulteriori informazioni** e poi su **Esegui comunque**.
 
 ---
 
 ## Come si annota
 
-1. **Caricamento del file**: tramite il pulsante "Sfoglia..." si carica un file Excel (.xlsx) o CSV contenente le occorrenze da annotare. Il file viene caricato interamente in tabella.
+1. **Apertura del file**: si apre un file Excel (.xlsx) o CSV contenente le occorrenze da annotare, con il pulsante "Sfoglia..." nella versione web o "Apri file…" nella versione locale. Il file viene caricato interamente in tabella.
 
 2. **Selezione dell'occorrenza**: cliccando su una riga della tabella si apre un pannello laterale con il dettaglio dell'occorrenza, mostrata nel suo contesto (contesto sinistro — parola chiave evidenziata — contesto destro).
 
 3. **Annotazione della singola occorrenza**:
+   - [solo versione locale] se sono stati definiti dei test (vedi [Scheda "Test"](#scheda-test)), si spuntano quelli superati dall'occorrenza;
    - si stabilisce se l'occorrenza è un Segnale Discorsivo (SD) o Non SD tramite il selettore dedicato;
    - se marcata come SD, si spuntano una o più funzioni tra le 23 disponibili, organizzate nelle tre colonne Interazionali / Metatestuali / Cognitive; ogni funzione ha una descrizione consultabile passando il mouse sull'icona informativa accanto al nome;
    - è possibile segnalare un **cumulo** (presenza di altri segnali discorsivi adiacenti) e annotare quali elementi lo compongono in un campo di testo dedicato;
    - è disponibile un campo di commento libero per osservazioni aggiuntive.
 
-4. [Solo per la versione web] **Salvataggio dell'occorrenza**: è indispensabile premere il pulsante "salva occorrenza" dopo aver compilato i campi di una riga, prima di passare a quella successiva. Le modifiche non salvate vengono perse se si cambia occorrenza senza aver salvato. L'applicazione mostra un avviso del browser se si tenta di chiudere la pagina con modifiche non salvate.
+4. **Salvataggio**: avviene in modo diverso nelle due versioni (vedi [Versione locale](#versione-locale) e [Versione web](#versione-web)).
 
-5. **Navigazione**: i pulsanti "Occorrenza precedente" / "Occorrenza successiva" permettono di scorrere le righe della tabella senza dover chiudere e riaprire il pannello.
+5. **Navigazione**: i pulsanti "Occorrenza precedente" / "Occorrenza successiva" permettono di scorrere le righe senza dover chiudere e riaprire il pannello.
 
-### [Solo per l'app desktop] Salvataggio delle annotazioni
+---
 
-Nell'app desktop le annotazioni vengono **scritte direttamente nel file aperto**, a ogni modifica: non c'è un pulsante "salva occorrenza" e non serve esportare. Il file sul computer è sempre aggiornato e non vengono create copie rinominate.
+## Versione locale
+
+### Salvataggio delle annotazioni
+
+Nella versione locale le annotazioni vengono **scritte direttamente nel file aperto**, a ogni modifica: non c'è un pulsante "salva occorrenza" e non serve esportare. Il file sul computer è sempre aggiornato e non vengono create copie rinominate.
 
 - per iniziare si apre il file Excel o CSV con **"Apri file…"**, che mostra le cartelle del computer a partire da quella dell'utente;
-- ogni annotazione (SD, funzioni, cumulo, commenti) viene salvata subito nel file; sotto i pulsanti compaiono il percorso del file e l'ora dell'ultimo salvataggio;
-- alla prima apertura di un file l'app crea, una sola volta, una **copia di sicurezza** accanto all'originale con estensione `.bak` (ad esempio `corpus.xlsx.bak`), che contiene il file com'era prima di qualsiasi annotazione;
-- all'avvio l'app mostra l'elenco dei **file recenti**: cliccandone uno si riprende il lavoro dall'occorrenza su cui ci si era fermati;
+- ogni annotazione (test, SD, funzioni, cumulo, commenti) viene salvata subito nel file; sotto i pulsanti compaiono il percorso del file e l'ora dell'ultimo salvataggio;
+- alla prima apertura di un file l'applicazione crea, una sola volta, una **copia di sicurezza** accanto all'originale con estensione `.bak` (ad esempio `corpus.xlsx.bak`), che contiene il file com'era prima di qualsiasi annotazione;
+- all'avvio l'applicazione mostra l'elenco dei **file recenti**: cliccandone uno si riprende il lavoro dall'occorrenza su cui ci si era fermati;
 - **"Chiudi file"** chiude il file senza cancellare nulla: le annotazioni restano salvate nel file.
 
-Al primo salvataggio vengono aggiunte al file le colonne di annotazione (`SD`, `labels`, `commenti`, `cumulo`, `cumulo_testo` e una colonna per ogni funzione) e la colonna `id_riga`, che numera le occorrenze. Grazie a `id_riga`, se il file viene riordinato in Excel, alla riapertura nell'app le occorrenze tornano nell'ordine originale.
+Alla prima apertura vengono aggiunte al file le colonne di annotazione (vedi [Struttura del file](#struttura-del-file-di-input)) e la colonna `id_riga`, che numera le occorrenze. Grazie a `id_riga`, se il file viene riordinato in Excel, alla riapertura nell'applicazione le occorrenze tornano nell'ordine originale.
 
 Alcune avvertenze:
 
-- **il file non deve essere aperto in Excel mentre si annota**: Windows lo blocca e l'app non riesce a salvare. In quel caso compare un avviso; chiudendo il file in Excel, il salvataggio riprende alla modifica successiva;
-- se il file Excel ha **più fogli**, l'app legge e riscrive solo il primo: gli altri fogli vengono persi (restano solo nella copia `.bak`);
+- **il file non deve essere aperto in Excel mentre si annota**: Windows lo blocca e l'applicazione non riesce a salvare. In quel caso compare un avviso; chiudendo il file in Excel, il salvataggio riprende alla modifica successiva;
+- se il file Excel ha **più fogli**, l'applicazione legge e riscrive solo il primo: gli altri fogli vengono persi (restano solo nella copia `.bak`);
 - i file in formato `.xls` (Excel 97-2003) vengono salvati come `.xlsx` con lo stesso nome, accanto all'originale;
 - i link ad audio, conversazione e trascrizione Jefferson si aprono nel browser predefinito (o, se puntano a un file sul computer, con il programma predefinito).
 
-### [Solo per la versione web] Attenzione: nessun salvataggio persistente automatico
+### Ricerca e ordinamento nella tabella
 
-In questa versione dell'applicazione web **i dati non vengono conservati in memoria tra una sessione e l'altra** e non esiste alcun salvataggio automatico su server o su file esterno. Questo significa che:
+- la casella **"Cerca in tutti i campi"** cerca nel testo dell'occorrenza, nelle funzioni assegnate e nei commenti (sempre nel testo completo);
+- sotto ogni intestazione c'è un **filtro per colonna**, ad esempio per cercare una funzione solo nella colonna Funzioni o una parola solo nei Commenti;
+- cliccando sull'intestazione di una colonna si ordinano le righe secondo quella colonna;
+- i pulsanti "Occorrenza precedente" / "Occorrenza successiva" seguono l'ordine e il filtro attivi in tabella: se si filtra per una funzione, si passa solo tra le occorrenze filtrate. Il titolo del pannello indica la posizione (ad esempio "Occorrenza n. 8 (2 di 7 nella selezione)");
+- chiudendo il pannello, ricerca, filtri e ordinamento restano invariati.
+
+### Scheda "Statistiche"
+
+Riporta, sul file aperto:
+
+- un **riepilogo**: occorrenze totali, annotate, SD, Non SD, numero medio di funzioni per SD e SD senza funzioni assegnate;
+- la frequenza delle **macrofunzioni** e delle **microfunzioni**, ordinate dalla più alla meno frequente, con numero di occorrenze e percentuale sulle occorrenze SD.
+
+Le funzioni sono contate solo sulle occorrenze annotate come SD. Poiché un'occorrenza può avere più funzioni, le percentuali sommate possono superare il 100%. I valori si aggiornano durante l'annotazione.
+
+### Scheda "Test"
+
+I test sono criteri, definiti dagli annotatori, da verificare per decidere se un'occorrenza è SD o Non SD (ad esempio "omissibile senza cambiare il senso"). Essendo specifici dell'SD in esame, si definiscono nella scheda "Test", preferibilmente prima di iniziare ad annotare:
+
+- si scrive il nome del test e si preme Invio o "Aggiungi test";
+- ogni test compare come casella da spuntare nel pannello di ogni occorrenza, sopra la scelta SD / Non SD;
+- nella tabella delle occorrenze ogni test ha una colonna in cui compare una spunta (✓) se il test è stato barrato; le spunte si mettono e si tolgono dal pannello dell'occorrenza;
+- la scheda riporta, per ogni test, quante occorrenze lo superano e quante di queste sono state annotate come SD e come Non SD;
+- ogni test può essere rinominato o eliminato (l'eliminazione cancella anche le relative spunte e chiede conferma).
+
+Nel file ogni test diventa una colonna il cui nome inizia con `TEST: ` (ad esempio `TEST: omissibile senza cambiare il senso`), con valore 1 se il test è spuntato e 0 altrimenti. L'elenco dei test è quindi salvato nel file stesso: riaprendolo, i test ricompaiono, e un file condiviso con un altro annotatore porta con sé i propri test. Si può anche aggiungere un test direttamente in Excel, creando una colonna con il prefisso `TEST: `.
+
+---
+
+## Versione web
+
+### Salvataggio dell'occorrenza
+
+Dopo aver compilato i campi di un'occorrenza è indispensabile premere il pulsante **"salva occorrenza"** prima di passare a quella successiva: le modifiche non salvate vengono perse se si cambia occorrenza. L'applicazione mostra un avviso del browser se si tenta di chiudere la pagina con modifiche non salvate.
+
+### Attenzione: nessun salvataggio persistente automatico
+
+Nella versione web **i dati non vengono conservati tra una sessione e l'altra** e non esiste alcun salvataggio automatico su server o su file esterno. Questo significa che:
 
 - ogni sessione di lavoro parte dal file caricato in quel momento;
 - tutte le annotazioni fatte esistono solo nella sessione attiva del browser;
-- se si chiude la scheda, si ricarica la pagina, o si perde la connessione con l'applicazione, **tutto il lavoro non esportato viene perso**;
+- se si chiude la scheda, si ricarica la pagina o si perde la connessione con l'applicazione, **tutto il lavoro non esportato viene perso**;
 - al termine della sessione (o periodicamente durante il lavoro, come precauzione) è necessario usare il pulsante **"export"** per scaricare il file CSV con le annotazioni fatte fino a quel momento;
 - per riprendere il lavoro in una sessione successiva, il file scaricato (con le annotazioni già presenti) va ricaricato tramite "Sfoglia...", **non** il file originale vuoto.
 
-Si raccomanda di esportare il file, specialmente prima di interruzioni prolungate.
+Si raccomanda di esportare il file spesso, e in ogni caso prima di interruzioni prolungate.
 
 ---
 
 ## Struttura del file di input
 
-Il file caricato deve essere in formato XLSX o CSV. L'applicazione riconosce e gestisce automaticamente le seguenti colonne; se assenti, vengono create vuote (o a zero) senza generare errori, ma alcune sono necessarie perché lo strumento sia effettivamente utilizzabile.
+Il file deve essere in formato XLSX o CSV. L'applicazione riconosce e gestisce automaticamente le seguenti colonne; se assenti, vengono create vuote (o a zero) senza generare errori, ma alcune sono necessarie perché lo strumento sia effettivamente utilizzabile.
 
 ### Campi indispensabili per la visualizzazione dell'occorrenza (KWIC)
 
@@ -81,8 +147,10 @@ Senza questi tre campi correttamente compilati la concordanza non è leggibile: 
 | `cumulo` | 1 se è stato segnalato un cumulo, 0 altrimenti |
 | `cumulo_testo` | Descrizione testuale del cumulo |
 | *(una colonna per ciascuna delle 23 microfunzioni)* | 1 se la funzione è presente sull'occorrenza, 0 altrimenti |
+| `id_riga` | [solo versione locale] Numero univoco dell'occorrenza, usato per mantenerne l'ordine |
+| `TEST: …` | [solo versione locale] Una colonna per ogni test definito: 1 se spuntato, 0 altrimenti |
 
-Queste colonne non devono essere precompilate: se assenti nel file caricato, l'applicazione le crea automaticamente vuote/a zero e le popola durante l'annotazione. Vengono scritte nel file scaricato con "export", in modo che il lavoro fatto sia sempre ricostruibile riaprendo quel file.
+Queste colonne non devono essere precompilate: se assenti, l'applicazione le crea automaticamente vuote/a zero e le popola durante l'annotazione. Nella versione locale vengono scritte direttamente nel file aperto; nella versione web vengono scritte nel file scaricato con "export". In entrambi i casi il lavoro fatto è sempre ricostruibile riaprendo il file.
 
 ### Campi opzionali per i rimandi al contesto (audio e testo integrale, es. KIParla)
 
@@ -92,7 +160,7 @@ Queste colonne non devono essere precompilate: se assenti nel file caricato, l'a
 | `doc.full_conversation` | Link alla trascrizione integrale della conversazione |
 | `doc.full_jefferson` | Link alla trascrizione in notazione Jefferson |
 
-Quando questi campi sono compilati (ad esempio con URL a risorse del corpus KIParla o di altri repository), nel pannello di dettaglio compaiono i link "Audio", "Conversazione" e "Jefferson", che aprono la risorsa corrispondente in una nuova scheda.
+Quando questi campi sono compilati (ad esempio con URL a risorse del corpus KIParla o di altri repository), nel pannello di dettaglio compaiono i link "Audio", "Conversazione" e "Jefferson". Nella versione web la risorsa si apre in una nuova scheda; nella versione locale si apre nel browser predefinito.
 
 Se questi campi sono assenti o vuoti, i relativi link semplicemente non vengono mostrati; l'annotazione resta comunque possibile sulla sola base del contesto KWIC.
 
@@ -100,7 +168,12 @@ Se questi campi sono assenti o vuoti, i relativi link semplicemente non vengono 
 
 ## Analisi dell'Inter-Annotator Agreement (IAA)
 
-L'applicazione include un modulo per il confronto tra due annotazioni indipendenti dello stesso set di occorrenze (ad esempio due annotatori che hanno lavorato sullo stesso file, o un'annotazione confrontata con un gold standard). Si accede al modulo tramite il pulsante "Confronta Annotazioni (IAA)": si carica un secondo file (di riferimento) e il sistema confronta le due annotazioni riga per riga.
+L'applicazione include un modulo per il confronto tra due annotazioni indipendenti dello stesso set di occorrenze (ad esempio due annotatori che hanno lavorato sullo stesso file, o un'annotazione confrontata con un gold standard). Si accede al modulo tramite il pulsante "Confronta Annotazioni (IAA)": si carica un secondo file (di riferimento) e il sistema confronta le due annotazioni occorrenza per occorrenza.
+
+Le occorrenze dei due file vengono abbinate:
+
+- **per numero di riga** (`id_riga`), nella versione locale, quando entrambi i file contengono questa colonna: il confronto è quindi corretto anche se uno dei due file è stato riordinato;
+- **per posizione** (prima riga con prima riga, e così via) negli altri casi, e sempre nella versione web: in questo caso i due file devono avere le occorrenze nello stesso ordine.
 
 Poiché a ciascuna occorrenza può essere assegnata più di un'etichetta contemporaneamente (annotazione multilabel), il confronto delle funzioni viene condotto a due livelli — **Macrofunzioni** e **Microfunzioni** — e secondo tre modalità di confronto tra insiemi: **Exact-Match**, **Soft-Match** e **Jaccard-Match**. A questi si aggiungono il confronto al **Livello SD** e l'analisi della **Polifunzionalità**.
 
@@ -196,12 +269,7 @@ Per **Macrofunzioni** e **Microfunzioni** vengono calcolati:
 * Jaccard-Match;
 * Krippendorff's Alpha per ciascuna delle tre modalità di confronto.
 
-Per ciascuna singola Macrofunzione e Microfunzione viene inoltre fornito un dettaglio diagnostico con:
-
-* Accordo positivo (Po);
-* Cohen's Kappa;
-* Gwet's AC1;
-* Alpha.
+Per ciascuna singola Macrofunzione e Microfunzione viene inoltre fornito un dettaglio diagnostico (vedi [Dettaglio per singola etichetta](#dettaglio-per-singola-etichetta-diagnostica)).
 
 ---
 
@@ -270,10 +338,6 @@ $$
 
 con $p_{1,1}$ e $p_{2,1}$ proporzioni di classificazioni `SD` e $p_{1,0}$ e $p_{2,0}$ proporzioni di classificazioni `Non SD` dei due annotatori.
 
-Per il dettaglio delle singole Macrofunzioni e Microfunzioni, la stessa misura viene calcolata trattando ciascuna funzione separatamente come una variabile binaria presenza/assenza.
-
-In questo caso vengono considerati i token per i quali almeno uno dei due annotatori ha assegnato quella specifica funzione.
-
 ---
 
 #### 4. Gwet's AC1
@@ -282,7 +346,9 @@ L'AC1 viene utilizzato come misura di accordo corretta per l'accordo atteso.
 
 La formula utilizzata è:
 
-$$AC1 =\frac{P_o-P_e^{AC1}}{1-P_e^{AC1}}$$
+$$
+AC1 =\frac{P_o-P_e^{AC1}}{1-P_e^{AC1}}
+$$
 
 dove la probabilità di accordo atteso viene calcolata a partire dalla proporzione media di assegnazioni positive dei due annotatori:
 
@@ -293,11 +359,11 @@ $$
 
 e:
 
-$$P\_e^{AC1} = 2\bar p(1-\bar p)$$
+$$
+P_e^{AC1} = 2\bar p(1-\bar p)
+$$
 
-Al Livello SD il calcolo viene effettuato sulla classificazione `SD / Non SD`.
-
-Nel dettaglio per singola Macrofunzione e Microfunzione viene effettuato sulla presenza/assenza della specifica funzione.
+Il calcolo viene effettuato sulla classificazione `SD / Non SD`.
 
 ---
 
@@ -397,9 +463,7 @@ Per ogni etichetta vengono quindi riportati:
 
 * **N positivo**: numero di token in cui la funzione è stata assegnata da almeno uno dei due annotatori;
 * **Accordo positivo (%)**: percentuale di accordo tra i due annotatori nel campione considerato;
-* **Kappa**;
-* **AC1**;
-* **Alpha**.
+* **Alpha**: Krippendorff's Alpha sulla variabile binaria presenza/assenza della funzione.
 
 Queste misure sono calcolate separatamente per ciascuna etichetta e consentono di osservare il comportamento delle singole funzioni, distinguendo ad esempio funzioni molto frequenti da funzioni più rare.
 
@@ -423,7 +487,6 @@ Sono riportati:
 
 * numero medio di funzioni per token;
 * mediana del numero di funzioni;
-* deviazione standard;
 * percentuale di token senza funzioni;
 * percentuale di token monofunzionali;
 * percentuale di token polifunzionali, cioè con almeno due funzioni.
@@ -470,4 +533,4 @@ La polifunzionalità non misura quindi l'identità delle funzioni assegnate, ma 
 
 Le misure di matching descrivono diversi gradi di accordo tra annotazioni multilabel: l'**Exact-Match** richiede la coincidenza completa dell'insieme, il **Soft-Match** richiede almeno una funzione condivisa, mentre il **Jaccard-Match** misura quantitativamente il grado di sovrapposizione tra i due insiemi.
 
-## L'**Alpha** integra invece il confronto con una stima del disaccordo atteso sulla base della distribuzione degli insiemi presenti nel campione, utilizzando una distanza coerente con la modalità di matching considerata.
+L'**Alpha** integra invece il confronto con una stima del disaccordo atteso sulla base della distribuzione degli insiemi presenti nel campione, utilizzando una distanza coerente con la modalità di matching considerata.
