@@ -21,6 +21,16 @@ MAX_RECENTI  <- 10
 # Nome della colonna con il numero univoco di riga (viene creata se manca)
 ID_COL <- "id_riga"
 
+# I test definiti dagli annotatori sono colonne del file il cui nome inizia con questo prefisso
+# (es. "TEST: omissibile"). Valori: 1 = spuntato, 0 = non spuntato.
+TEST_PREFIX <- "TEST: "
+test_cols <- function(df) if (is.null(df)) character(0) else grep(paste0("^", TEST_PREFIX), names(df), value = TRUE)
+nome_test <- function(col) sub(paste0("^", TEST_PREFIX), "", col)
+a_binario <- function(v) {
+  x <- toupper(trimws(as.character(v)))
+  as.numeric(!is.na(x) & x %in% c("1", "1.0", "TRUE", "VERO", "X", "SI", "SÌ", "S"))
+}
+
 # =========================
 # UTILS & HELPERS
 # =========================
@@ -547,6 +557,7 @@ prepara_df <- function(df) {
   df <- ensure_col(df, "KWIC", "")
   df <- ensure_col(df, "Right", "")
   df <- ensure_bin_cols(df, ALL_KEYS)
+  for (col in test_cols(df)) df[[col]] <- a_binario(df[[col]])
   df <- reconstruct_annotations(df)
   assegna_id(df)
 }
@@ -680,6 +691,14 @@ ui <- fluidPage(
       #table td.col-sd { white-space: nowrap; }
       #table td.col-commento { white-space: normal; word-break: break-word; font-size: 0.92em; }
       .pos-occ { font-size:0.6em; color:#777; font-weight:normal; }
+      .test-box { margin: 4px 0 10px 0; }
+      .test-box h5 { margin: 0 0 4px 0; font-weight: 600; }
+      .test-row label { font-weight: normal; margin: 0 0 3px 0; cursor: pointer; }
+      .test-row input { margin-right: 6px; }
+      #table td.col-test { text-align: center; color: #1565c0; font-weight: 700; }
+      #table th.col-test { white-space: normal; }
+      .test-aggiungi { display: flex; gap: 8px; align-items: center; max-width: 640px; }
+      .test-aggiungi .form-group { flex: 1; margin-bottom: 0; }
       .note-box { background:#f5f7fa; border-left:4px solid #1565c0; padding:10px 14px; margin-bottom:12px; font-size:0.92em; }
     "))
   ),
@@ -706,7 +725,21 @@ ui <- fluidPage(
     tabsetPanel(
       id = "schede",
       tabPanel("Occorrenze", br(), DTOutput("table")),
-      tabPanel("Statistiche", br(), uiOutput("statistiche"))
+      tabPanel("Statistiche", br(), uiOutput("statistiche")),
+      tabPanel(
+        "Test", br(),
+        p("I test sono criteri da verificare per decidere se un'occorrenza è SD o Non SD ",
+          "(per esempio «omissibile senza cambiare il senso»). Definiscili qui prima di annotare: ",
+          "compariranno come caselle da spuntare nel pannello di ogni occorrenza e come colonne nella tabella ",
+          "e nel file (con il prefisso «", TEST_PREFIX, "»)."),
+        div(
+          class = "test-aggiungi",
+          textInput("nuovo_test", NULL, placeholder = "Nuovo test, es. omissibile senza cambiare il senso", width = "100%"),
+          actionButton("aggiungi_test", "Aggiungi test")
+        ),
+        br(),
+        uiOutput("test_ui")
+      )
     )
   ),
   uiOutput("drawer"),
@@ -726,6 +759,7 @@ ui <- fluidPage(
         cumulo: $('#cumulo').is(':checked'),
         cumulo_testo: $('#cumulo_testo').val() || '',
         funzioni: d.find('.micro-row input[type=checkbox]:checked').map(function () { return this.id; }).get(),
+        test: d.find('input.test-input').map(function () { return { col: $(this).attr('data-col'), v: this.checked }; }).get(),
         t: Date.now()
       };
     }
@@ -745,6 +779,9 @@ ui <- fluidPage(
     });
     // Testo (commenti, cumulo): salvataggio dopo una breve pausa di digitazione
     $(document).on('input', '.drawer textarea', function () { programma(500); });
+
+    // Invio nel campo del nuovo test = Aggiungi
+    $(document).on('keyup', '#nuovo_test', function (e) { if (e.key === 'Enter') $('#aggiungi_test').click(); });
 
     // Solo i link con classe 'link-esterno' (logo, audio, conversazione, Jefferson)
     // vengono aperti da R nel browser predefinito (o, per i file locali, con il
@@ -940,6 +977,12 @@ server <- function(input, output, session) {
     df$cumulo_testo[i] <- if (cumulo && !is.null(s$cumulo_testo)) as.character(s$cumulo_testo) else ""
     for (id in ALL_IDS) df[[id]][i] <- as.numeric(id %in% attive)
     df$labels[i] <- paste(ALL_KEYS[ALL_IDS %in% attive], collapse = "|")
+    tt <- s$test
+    if (is.data.frame(tt)) tt <- split(tt, seq_len(nrow(tt)))
+    for (x in tt) {
+      col <- as.character(x$col)
+      if (length(col) == 1 && col %in% test_cols(df)) df[[col]][i] <- as.numeric(isTRUE(as.logical(x$v)))
+    }
     df_r(df)
     salva_su_file(df)
     
@@ -957,24 +1000,136 @@ server <- function(input, output, session) {
     if (!is.null(p)) aggiorna_idx_recente(p, idx())
   })
   
+  # ---------- Test definiti dagli annotatori ----------
+  
+  # Cambia l'elenco dei test (colonne): salva il file e ridisegna tabella e pannello
+  applica_test <- function(df) {
+    df_r(df)
+    salva_su_file(df)
+    aggiorna_tabella()
+    if (isTRUE(isolate(drawer()))) { drawer(FALSE); drawer(TRUE) }
+  }
+  
+  valida_nome_test <- function(nome, df, escludi = NULL) {
+    nome <- trimws(gsub("[\r\n\t]+", " ", nome))
+    if (!nzchar(nome)) return(list(ok = FALSE, msg = "Scrivi il nome del test."))
+    esistenti <- setdiff(tolower(nome_test(test_cols(df))), tolower(escludi))
+    if (tolower(nome) %in% esistenti) return(list(ok = FALSE, msg = "Esiste già un test con questo nome."))
+    if (paste0(TEST_PREFIX, nome) %in% names(df) && !identical(nome, escludi))
+      return(list(ok = FALSE, msg = "Nel file esiste già una colonna con questo nome."))
+    list(ok = TRUE, nome = nome)
+  }
+  
+  observeEvent(input$aggiungi_test, {
+    df <- df_r()
+    if (is.null(df)) {
+      showNotification("Apri prima un file: i test vengono salvati come colonne del file.", type = "warning")
+      return()
+    }
+    v <- valida_nome_test(input$nuovo_test, df)
+    if (!v$ok) { showNotification(v$msg, type = "warning"); return() }
+    df[[paste0(TEST_PREFIX, v$nome)]] <- 0
+    updateTextInput(session, "nuovo_test", value = "")
+    applica_test(df)
+  })
+  
+  observeEvent(input$rinomina_test, {
+    col <- input$rinomina_test$col
+    req(col %in% test_cols(df_r()))
+    showModal(modalDialog(
+      title = "Rinomina test",
+      textInput("rinomina_test_nome", NULL, value = nome_test(col), width = "100%"),
+      footer = tagList(modalButton("Annulla"), actionButton("rinomina_test_ok", "Rinomina", class = "btn-primary"))
+    ))
+    test_in_modifica(col)
+  })
+  test_in_modifica <- reactiveVal(NULL)
+  observeEvent(input$rinomina_test_ok, {
+    df <- df_r(); col <- test_in_modifica()
+    req(df, col %in% names(df))
+    v <- valida_nome_test(input$rinomina_test_nome, df, escludi = nome_test(col))
+    if (!v$ok) { showNotification(v$msg, type = "warning"); return() }
+    removeModal()
+    names(df)[names(df) == col] <- paste0(TEST_PREFIX, v$nome)
+    applica_test(df)
+  })
+  
+  observeEvent(input$elimina_test, {
+    col <- input$elimina_test$col
+    df <- df_r()
+    req(col %in% test_cols(df))
+    n <- sum(df[[col]] == 1)
+    test_in_modifica(col)
+    showModal(modalDialog(
+      title = "Eliminare il test?",
+      sprintf("Il test «%s» verrà tolto dal file%s.", nome_test(col),
+              if (n > 0) sprintf(", insieme alle sue %d spunte", n) else ""),
+      footer = tagList(modalButton("Annulla"), actionButton("elimina_test_ok", "Elimina", class = "btn-danger"))
+    ))
+  })
+  observeEvent(input$elimina_test_ok, {
+    df <- df_r(); col <- test_in_modifica()
+    req(df, col %in% names(df))
+    removeModal()
+    df[[col]] <- NULL
+    applica_test(df)
+  })
+  
+  output$test_ui <- renderUI({
+    df <- df_r()
+    if (is.null(df)) return(p(class = "text-muted", "Apri un file per definire i test."))
+    tc <- test_cols(df)
+    if (length(tc) == 0) return(p(class = "text-muted", "Nessun test definito."))
+    sd <- as.character(df$SD)
+    azione <- function(input_id, col, etichetta, classe = "btn-default") {
+      tags$button(
+        type = "button", class = paste("btn btn-xs btn-sm", classe), etichetta,
+        onclick = sprintf("Shiny.setInputValue('%s', {col: %s, t: Date.now()}, {priority: 'event'})",
+                          input_id, as.character(jsonlite::toJSON(col, auto_unbox = TRUE)))
+      )
+    }
+    tags$table(
+      class = "table table-striped table-sm", style = "width:auto;",
+      tags$thead(tags$tr(
+        tags$th("#"), tags$th("Test"), tags$th("Spuntato"), tags$th("di cui SD"), tags$th("di cui Non SD"), tags$th("")
+      )),
+      tags$tbody(lapply(seq_along(tc), function(k) {
+        col <- tc[k]
+        si <- df[[col]] == 1
+        tags$tr(
+          tags$td(k), tags$td(nome_test(col)),
+          tags$td(sum(si)), tags$td(sum(si & sd == "SD")), tags$td(sum(si & sd == "Non SD")),
+          tags$td(style = "white-space:nowrap;",
+                  azione("rinomina_test", col, "Rinomina"), " ",
+                  azione("elimina_test", col, "Elimina", "btn-danger"))
+        )
+      }))
+    )
+  })
+  
   # ---------- Tabella principale ----------
   
   tabella_view <- function(df) {
-    data.frame(
+    base <- data.frame(
       N. = df[[ID_COL]],
       Occorrenza = paste0(df$Left, " <span class='kwic'>", df$KWIC, "</span> ", df$Right),
       SD = df$SD,
-      Funzioni = gsub("\\|", "; ", df$labels),
-      Commento = as.character(df$commenti),
       check.names = FALSE,
       stringsAsFactors = FALSE
     )
+    # Colonne dei test: in tabella si vede solo la spunta
+    for (col in test_cols(df)) base[[nome_test(col)]] <- ifelse(df[[col]] == 1, "sì", "no")
+    base$Funzioni <- gsub("\\|", "; ", df$labels)
+    base$Commento <- as.character(df$commenti)
+    base
   }
   
   output$table <- renderDT({
     tabella_ver()
     df <- isolate(df_r())
     req(df)
+    tc <- test_cols(df)
+    nt <- length(tc)
     
     datatable(
       tabella_view(df), escape = FALSE, selection = "single", rownames = FALSE,
@@ -984,7 +1139,10 @@ server <- function(input, output, session) {
         search = list(caseInsensitive = TRUE, regex = FALSE),
         initComplete = JS(
           "function() {",
-          "  $(this.api().table().container()).find('thead input[type=search]').attr('placeholder', 'filtra');",
+          "  var c = $(this.api().table().container());",
+          "  c.find('thead input[type=search]').attr('placeholder', 'filtra');",
+          sprintf("  [%s].forEach(function (k) { c.find('thead tr').eq(1).children().eq(k).empty(); });",
+                  paste(2 + seq_len(nt), collapse = ",")),
           "}"
         ),
         language = list(
@@ -992,18 +1150,26 @@ server <- function(input, output, session) {
           info = "_TOTAL_ occorrenze", infoFiltered = "(filtrate da _MAX_)",
           infoEmpty = "Nessuna occorrenza", zeroRecords = "Nessun risultato"
         ),
-        columnDefs = list(
-          # Larghezze: l'occorrenza prende lo spazio, SD e N. il minimo, il commento va a capo
-          list(targets = 0, width = "40px"),
-          list(targets = 1, width = "55%"),
-          list(targets = 2, width = "60px", className = "col-sd"),
-          list(targets = 3, width = "20%"),
-          list(targets = 4, width = "15%", className = "col-commento", render = JS(
-            "function(d, t) {",
-            "  if (t !== 'display') return d;",
-            "  return $('<div>').text(d || '').html();",
-            "}"
-          ))
+        columnDefs = c(
+          list(
+            # Larghezze: l'occorrenza prende lo spazio, SD e N. il minimo, il commento va a capo
+            list(targets = 0, width = "40px"),
+            list(targets = 1, width = "55%"),
+            list(targets = 2, width = "60px", className = "col-sd"),
+            list(targets = 3 + nt, width = "20%"),
+            list(targets = 4 + nt, width = "15%", className = "col-commento", render = JS(
+              "function(d, t) {",
+              "  if (t !== 'display') return d;",
+              "  return $('<div>').text(d || '').html();",
+              "}"
+            ))
+          ),
+          # Colonne dei test: solo la spunta (si mette e si toglie dal pannello dell'occorrenza)
+          lapply(seq_len(nt), function(k) {
+            list(targets = 2 + k, width = "70px", className = "col-test", searchable = FALSE, render = JS(
+              "function(d, t) { return t === 'display' ? (d === 'sì' ? '\u2713' : '') : d; }"
+            ))
+          })
         )
       )
     )
@@ -1092,6 +1258,25 @@ server <- function(input, output, session) {
               column(8,
                      h4("Occorrenza"),
                      div(class = "kwic-box", HTML(paste0(r$Left, " <span class='kwic'>", r$KWIC, "</span> ", r$Right))),
+                     {
+                       tc <- test_cols(df_snapshot)
+                       div(
+                         class = "test-box",
+                         h5("Test"),
+                         if (length(tc) == 0) {
+                           tags$small(class = "text-muted", "Nessun test definito: puoi aggiungerli nella scheda «Test».")
+                         } else {
+                           lapply(tc, function(col) {
+                             spuntato <- isTRUE(as.numeric(r[[col]]) == 1)
+                             div(class = "test-row", tags$label(
+                               tags$input(type = "checkbox", class = "test-input", `data-col` = col,
+                                          checked = if (spuntato) NA else NULL),
+                               nome_test(col)
+                             ))
+                           })
+                         }
+                       )
+                     },
                      radioButtons("sd", "SD", choices = c("Non SD", "SD"), selected = sd_sel, inline = TRUE)
               ),
               column(4,
