@@ -12,4 +12,3 @@ window:
 icons:
   mac: "icons/icona.icns"
   win: "icons/icona.ico"
-  linux: "icons/icona.png"
