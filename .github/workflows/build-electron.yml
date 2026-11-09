@@ -1,0 +1,62 @@
+# Costruisce gli installer di COLÀ per Windows, macOS e Linux con GitHub Actions.
+#
+# - Avvio manuale: scheda "Actions" > "Build COLÀ" > "Run workflow".
+#   Gli installer si scaricano dalla pagina dell'esecuzione, sezione "Artifacts".
+# - Release: creando un tag che inizia con "v" (es. v1.1.0) gli installer
+#   vengono allegati automaticamente a una nuova release.
+
+name: Build COLÀ
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    # Windows ARM è ancora sperimentale: se fallisce, le altre versioni proseguono
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest,  platform: win,   arch: x64,   strategy: bundled, experimental: false }
+          - { os: windows-11-arm,  platform: win,   arch: arm64, strategy: bundled, experimental: true  }
+          - { os: macos-latest,    platform: mac,   arch: arm64, strategy: bundled, experimental: false }
+          - { os: macos-15-intel,  platform: mac,   arch: x64,   strategy: bundled, experimental: false }
+          # Su Linux R non può essere incluso: l'app usa l'R installato sul computer
+          - { os: ubuntu-latest,   platform: linux, arch: x64,   strategy: system,  experimental: false }
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Costruisci l'installer
+        uses: coatless-actions/shiny-to-electron@v1
+        with:
+          appdir: app                 # cartella con app.R, www/ e _shinyelectron.yml
+          app-name: COLÀ
+          artifact-name: COLA-${{ matrix.platform }}-${{ matrix.arch }}
+          platform: ${{ matrix.platform }}
+          arch: ${{ matrix.arch }}
+          runtime-strategy: ${{ matrix.strategy }}
+          r-version: release
+
+  release:
+    name: Pubblica la release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Scarica gli installer
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Crea la release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
