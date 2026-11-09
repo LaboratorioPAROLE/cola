@@ -1,6 +1,7 @@
 # Impostazioni di shinyelectron per COLÀ (i percorsi sono relativi a questa cartella)
 
 app:
+  slug: "cola"               # nome interno (cartelle dell'app); senza accenti
   version: "1.0.0"
   description: "COLÀ - Console Online per L'Annotazione (dei segnali discorsivi)"
   homepage: "https://github.com/LaboratorioPAROLE/cola"
@@ -12,3 +13,4 @@ window:
 icons:
   mac: "icons/icona.icns"
   win: "icons/icona.ico"
+  linux: "icons/icona.png"

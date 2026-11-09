@@ -41,6 +41,9 @@ jobs:
           arch: ${{ matrix.arch }}
           runtime-strategy: ${{ matrix.strategy }}
           r-version: release
+          # Percorso completo: con un percorso relativo shinyelectron non riesce
+          # a installare i pacchetti nell'R incluso ("lib ... is not writable")
+          destdir: ${{ github.workspace }}/build
 
   release:
     name: Pubblica la release
